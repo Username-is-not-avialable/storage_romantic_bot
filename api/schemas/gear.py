@@ -22,16 +22,6 @@ class GearBase(BaseModel):
         if v > info.data['total_quantity']:
             raise ValueError('available_count не может превышать total_quantity')
         return v
-    
-    # @field_validator('available_count', mode='before')
-    # def set_default(cls, v, info):
-    #     if v is None:
-    #         return info.data['total_quantity']
-    #     return v
-    
-    # @field_validator('available_count')
-    # def set_default_available(cls, v, values):
-    #     return v if v is not None else values['total_quantity']
 
 class GearCreate(GearBase):
     """Схема для создания снаряжения"""
