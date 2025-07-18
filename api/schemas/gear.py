@@ -30,7 +30,11 @@ class GearCreate(GearBase):
 class GearResponse(GearBase):
     """Схема для возврата данных о снаряжении"""
     id: int
-    available_count: int = Field(..., ge=0, example=7)
+    available_count: int = Field(..., ge=0, example=7) #duplicates with field in base class
 
     class Config:
         from_attributes = True  # Для совместимости с ORM (альтернатива orm_mode в Pydantic v2)
+
+class GearSearchResponse(BaseModel):
+    """Схема для возврата списка снаряжения"""
+    items: list[GearResponse] = Field(..., description="Список элементов снаряжения")

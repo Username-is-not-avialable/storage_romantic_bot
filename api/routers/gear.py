@@ -1,9 +1,9 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from api.database import get_db, Gear
-from api.schemas.gear import GearCreate, GearResponse
+from api.schemas.gear import GearCreate, GearResponse, GearSearchResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/api/gear", tags=["Gear"])
 
@@ -35,11 +35,29 @@ async def add_gear(
     return db_gear
 
 @router.get("/{gear_id}", response_model=GearResponse)
-async def get_gear(gear_id: int):
+async def get_gear(gear_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
     """Получение снаряжения по ID"""
-    raise NotImplementedError
+    result = await db.execute(select(Gear).where(Gear.id == gear_id))
+    gear = result.scalar_one_or_none()
+    if gear is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Снаряжение с таким id не существует"
+        )
+    
+    return gear
 
-@router.get("/search")
-async def get_gear_by_name(name: str):
+@router.get("/search/{name}", response_model=GearSearchResponse)
+async def get_gear_by_name(name: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Поиск по названию"""
-    raise NotImplementedError
+    result = await db.execute(
+        select(Gear).where(
+            or_(
+                Gear.name.ilike(f"%{name}%"), 
+                Gear.description.ilike(f"%{name}%")
+            )
+        )
+    )
+    gear_list = result.scalars().all()
+
+    return GearSearchResponse(items=gear_list)
