@@ -67,6 +67,7 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             total_quantity INTEGER NOT NULL CHECK (total_quantity >= 0),
+            available_count INTEGER NOT NULL CHECK (available_count <= total_quantity),
             description TEXT
         )
         """,
