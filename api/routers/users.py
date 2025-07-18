@@ -41,9 +41,28 @@ async def add_user(
     
 
 @router.get("/{id_telegram}", response_model=UserResponse)
-async def get_user(id_telegram: int):
+async def get_user(
+    id_telegram: int,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
     """Получение пользователя по Telegram ID"""
-    raise NotImplementedError
+    
+    # Выполняем асинхронный запрос к БД
+    result = await db.execute(
+        select(User).where(User.id_telegram == id_telegram)
+    )
+    user = result.scalar_one_or_none()
+    
+    # Если пользователь не найден - возвращаем 404
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="Пользователь с указанным Telegram ID не найден"
+        )
+    
+    return user
+    
+    
 
 @router.patch("/{id_telegram}/document")
 async def update_document(id_telegram: int, document: str | None):
