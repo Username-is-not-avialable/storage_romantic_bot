@@ -64,12 +64,12 @@ async def get_user(
     
     
 
-@router.patch("/{id_telegram}/document")
+@router.patch("/{id_telegram}/document", deprecated=True)
 async def update_document(id_telegram: int, document: str | None):
     """Обновление документа"""
     raise NotImplementedError
 
-@router.get("/{id_telegram}/is_manager")
+@router.get("/{id_telegram}/is_manager", deprecated=True)
 async def check_manager(id_telegram: int):
     """Проверка статуса завснара"""
     raise NotImplementedError
