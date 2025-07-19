@@ -1,9 +1,10 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, User, get_db
 from api.schemas.rental import RentalCreate, RentalResponse, RentalsList
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/rentals", tags=["Rentals"])
 
@@ -71,7 +72,35 @@ async def get_active_rentals(
     
     return RentalsList(rentals=rentals)
 
-@router.patch("/{rental_id}/return", response_model=RentalResponse)
-async def update_return_date(rental_id: int):
-    """Отметка о возврате"""
-    raise NotImplementedError
+@router.patch("/{rental_id}/return", response_model=RentalResponse) # TODO: добавить опцию сдачи в количестве < quantity 
+async def update_return_date(
+    rental_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат")
+):
+    """Отметка о возврате снаряжения"""
+    # Получаем запись об аренде
+    rental = await db.get(Rental, rental_id)
+    if not rental:
+        raise HTTPException(status_code=404, detail="Запись об аренде не найдена")
+
+    # Проверяем менеджера
+    manager_exists = await db.execute(
+        select(exists().where(User.id_telegram == manager_tg_id))
+    )
+    if not manager_exists.scalar():
+        raise HTTPException(status_code=404, detail="Менеджер не найден")
+
+    # Обновляем данные
+    rental.return_date = datetime.now(timezone.utc)
+    rental.accept_manager_tg_id = manager_tg_id
+
+    # Возвращаем снаряжение в доступное количество
+    gear = await db.get(Gear, rental.gear_id)
+    if gear:
+        gear.available_count += rental.quantity
+
+    await db.commit()
+    await db.refresh(rental)
+    
+    return rental
