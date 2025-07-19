@@ -75,12 +75,14 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS rentals (
             id SERIAL PRIMARY KEY,
             user_telegram_id BIGINT NOT NULL REFERENCES users(id_telegram),
-            manager_telegram_id BIGINT NOT NULL REFERENCES users(id_telegram),
+            issue_manager_tg_id BIGINT NOT NULL REFERENCES users(id_telegram),
+            accept_manager_tg_id BIGINT REFERENCES users(id_telegram),
             gear_id INTEGER NOT NULL REFERENCES gear(id),
             issue_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             due_date DATE NOT NULL,
             return_date DATE,
             quantity INTEGER NOT NULL CHECK (quantity > 0),
+            event TEXT NOT NULL,
             comment TEXT,
             CHECK (due_date > issue_date::DATE),
             CHECK (return_date IS NULL OR return_date >= issue_date::DATE)

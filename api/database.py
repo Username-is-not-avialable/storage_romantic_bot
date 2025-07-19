@@ -43,13 +43,15 @@ class Rental(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_telegram_id = Column(Integer, ForeignKey("users.id_telegram"), nullable=False)
-    manager_telegram_id = Column(Integer, ForeignKey("users.id_telegram"), nullable=False)
+    issue_manager_tg_id = Column(Integer, ForeignKey("users.id_telegram"), nullable=False)
+    accept_manager_tg_id = Column(Integer, ForeignKey("users.id_telegram"), nullable=True)
     gear_id = Column(Integer, ForeignKey("gear.id"), nullable=False)
     issue_date = Column(Date, default=datetime.utcnow, nullable=False)
     due_date = Column(Date, nullable=False)
     return_date = Column(Date, nullable=True)
     quantity = Column(Integer, nullable=False)
-    comment = Column(String(300), nullable=True)
+    event = Column(String(300), nullable=False) #TODO: определить подходящее ограничение
+    comment = Column(String(300), nullable=True) #TODO: определить подходящее ограничение
 
 async def get_db():
     async with AsyncSessionLocal() as session:
