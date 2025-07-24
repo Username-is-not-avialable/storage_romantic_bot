@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from api.dependencies import get_current_user
 from api.schemas.user import UserCreate, UserResponse
 from api.database import User, get_db
 from sqlalchemy import select
@@ -64,10 +65,39 @@ async def get_user(
     
     
 
-@router.patch("/{id_telegram}/document", deprecated=True)
-async def update_document(id_telegram: int, document: str | None):
-    """Обновление документа"""
-    raise NotImplementedError
+@router.patch("/{id_telegram}/document")
+async def update_document(
+    id_telegram: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    doc_name: str | None = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Обновление документа пользователя
+    
+    Параметры:
+    - id_telegram: ID пользователя в Telegram
+    - doc_name: Название документа (опционально)
+    - current_user: Авторизованный пользователь (из зависимости)
+    """
+
+    # Обновляем документ
+    current_user.document = doc_name  # None очистит документ
+    
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+        return {
+            "status": "success",
+            "id_telegram": id_telegram,
+            "new_document": doc_name
+        }
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при обновлении: {str(e)}"
+        )
 
 @router.get("/{id_telegram}/is_manager", deprecated=True)
 async def check_manager(id_telegram: int):
