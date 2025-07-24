@@ -99,7 +99,11 @@ async def update_document(
             detail=f"Ошибка при обновлении: {str(e)}"
         )
 
-@router.get("/{id_telegram}/is_manager", deprecated=True)
-async def check_manager(id_telegram: int):
+@router.get("/{id_telegram}/is_manager")
+async def check_manager(
+    id_telegram: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: User = Depends(get_current_user)
+):
     """Проверка статуса завснара"""
-    raise NotImplementedError
+    return current_user.is_manager
