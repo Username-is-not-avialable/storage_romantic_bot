@@ -38,3 +38,17 @@ class GearResponse(GearBase):
 class GearSearchResponse(BaseModel):
     """Схема для возврата списка снаряжения"""
     items: list[GearResponse] = Field(..., description="Список элементов снаряжения")
+
+class GearUpdate(BaseModel):
+    """Схема для обновления данных снаряжения"""
+    name: str | None = Field(
+        None, 
+        min_length=1, 
+        max_length=100,
+        example="Новое название"
+    )
+    description: str | None = Field(
+        None, 
+        max_length=1000,
+        example="Обновленное описание"
+    )

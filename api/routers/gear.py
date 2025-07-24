@@ -1,7 +1,8 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
-from api.database import get_db, Gear
-from api.schemas.gear import GearCreate, GearResponse, GearSearchResponse
+from api.database import User, get_db, Gear
+from api.dependencies import get_current_user, get_valid_gear
+from api.schemas.gear import GearCreate, GearResponse, GearSearchResponse, GearUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_, select
 
@@ -61,3 +62,28 @@ async def get_gear_by_name(name: str, db: Annotated[AsyncSession, Depends(get_db
     gear_list = result.scalars().all()
 
     return GearSearchResponse(items=gear_list)
+
+@router.patch("/{gear_id}", response_model=GearResponse)
+async def update_gear(
+    gear_id: int,
+    gear_data: GearUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    gear: Gear = Depends(get_valid_gear)
+):
+    """Обновление информации о снаряжении"""
+
+    # Обновляем только переданные поля
+    update_data = gear_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(gear, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(gear)
+        return gear
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при обновлении: {str(e)}"
+        )
