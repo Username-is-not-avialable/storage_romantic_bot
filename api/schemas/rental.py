@@ -40,3 +40,10 @@ class RentalResponse(RentalBase):
 
 class RentalsList(BaseModel):
     rentals: list[RentalResponse]
+
+class RentalUpdate(BaseModel):
+    user_telegram_id: int | None = Field(None, example=12345)
+    gear_id: int | None = Field(None, example=1)
+    due_date: date | None = Field(None, example="2024-12-31")
+    event: str | None = Field(None, max_length=100)
+    comment: str | None = Field(None, max_length=500)
