@@ -9,7 +9,7 @@ load_dotenv()
 user = os.getenv('DB_USER')
 password = os.getenv('DB_PASSWORD')
 db_name = os.getenv('DB_NAME')
-DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@localhost/{db_name}"
+DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@db:5432/{db_name}"
 
 engine = create_async_engine(DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession)
