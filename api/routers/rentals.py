@@ -77,7 +77,7 @@ async def get_active_rentals(
 async def update_return_date(
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    quantity: int = Query(..., description="количество единиц возвращаемого снаряжения данного типа"),
+    quantity: int = Query(default=None, description="количество единиц возвращаемого снаряжения данного типа"),
     manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат"),
 ):
     """Отметка о возврате снаряжения"""
@@ -92,6 +92,8 @@ async def update_return_date(
     )
     if not manager_exists.scalar():
         raise HTTPException(status_code=404, detail="Менеджер не найден")
+    if quantity is None:
+        quantity = rental.quantity
 
     if rental.quantity == quantity:
         # Обновляем данные
