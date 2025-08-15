@@ -77,7 +77,8 @@ async def get_active_rentals(
 async def update_return_date(
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат")
+    quantity: int = Query(..., description="количество единиц возвращаемого снаряжения данного типа"),
+    manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат"),
 ):
     """Отметка о возврате снаряжения"""
     # Получаем запись об аренде
@@ -92,14 +93,18 @@ async def update_return_date(
     if not manager_exists.scalar():
         raise HTTPException(status_code=404, detail="Менеджер не найден")
 
-    # Обновляем данные
-    rental.return_date = datetime.now(timezone.utc)
-    rental.accept_manager_tg_id = manager_tg_id
+    if rental.quantity == quantity:
+        # Обновляем данные
+        rental.return_date = datetime.now(timezone.utc)
+        rental.accept_manager_tg_id = manager_tg_id
+    else:
+        rental.quantity -= quantity
+        #TODO: добавить функцию записи события сдачи не всей снаряги в комментарий к записи об аренде
 
     # Возвращаем снаряжение в доступное количество
     gear = await db.get(Gear, rental.gear_id)
     if gear:
-        gear.available_count += rental.quantity
+        gear.available_count += quantity
 
     await db.commit()
     await db.refresh(rental)
