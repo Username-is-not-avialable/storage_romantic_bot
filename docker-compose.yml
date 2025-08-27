@@ -30,19 +30,15 @@ services:
       DATABASE_URL:
         postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
     ports:
-      - "8080:8000"
+      - "8100:8000"
     volumes:
       - ./api:/app/api
       - ./scripts:/app/scripts
     restart: unless-stopped
 
-  # Резервируем сервис для телеграм-бота
-  # tg_bot:
-  #   image: busybox
-  #   container_name: storage_tg_bot
-  #   command: tail -f /dev/null  # Заглушка
-  #   volumes:
-  #     - ./tg:/app/tg
+  #TODO: добавить depends on: api после добавления /health в api
+  bot: 
+    build: ./bot
 
 volumes:
   postgres_data:
