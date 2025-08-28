@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/rentals", tags=["Rentals"])
 async def add_record(rental: RentalCreate, 
                      db: Annotated[AsyncSession, Depends(get_db)]):
     """Добавление записи о выдаче снаряжения"""
-        # Проверка существования снаряжения
+    # Проверка существования снаряжения
     gear = await db.get(Gear, rental.gear_id)
     if not gear:
         raise HTTPException(status_code=404, detail="Снаряжение не найдено")
@@ -32,6 +32,9 @@ async def add_record(rental: RentalCreate,
         )
         if not user_exists.scalar():
             raise HTTPException(status_code=404, detail=f"Пользователь с ID {tg_id} не найден")
+    
+    # Сохраняем название снаряжения до коммита
+    gear_name = gear.name
     
     # Создание записи об аренде
     db_rental = Rental(
@@ -52,7 +55,13 @@ async def add_record(rental: RentalCreate,
     await db.commit()
     await db.refresh(db_rental)
     
-    return db_rental
+    # Добавляем название снаряжения к ответу
+    response_data = {
+        **{key: getattr(db_rental, key) for key in db_rental.__mapper__.attrs.keys()},
+        'gear_name': gear_name
+    }
+    
+    return response_data
     
 
 @router.get("/active", response_model=RentalsList)
@@ -61,7 +70,9 @@ async def get_active_rentals(
     user_id: int | None = None
 ):
     """Получение списка активных выдач снаряжения"""
-    query = select(Rental).where(
+    query = select(Rental, Gear.name.label('gear_name')).join(
+        Gear, Rental.gear_id == Gear.id
+    ).where(
         Rental.return_date.is_(None)  # Ищем записи без даты возврата
     )
     
@@ -69,11 +80,20 @@ async def get_active_rentals(
         query = query.where(Rental.user_telegram_id == user_id)
     
     result = await db.execute(query)
-    rentals = result.scalars().all()
+    rentals_with_gear = result.all()
+    
+    # Преобразуем результат в список словарей с объединенными полями
+    rentals = []
+    for rental, gear_name in rentals_with_gear:
+        rental_dict = {
+            **{key: getattr(rental, key) for key in rental.__mapper__.attrs.keys()},
+            'gear_name': gear_name
+        }
+        rentals.append(rental_dict)
     
     return RentalsList(rentals=rentals)
 
-@router.patch("/{rental_id}/return", response_model=RentalResponse) # TODO: добавить опцию сдачи в количестве < quantity 
+@router.patch("/{rental_id}/return", response_model=RentalResponse)
 async def update_return_date(
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -81,10 +101,18 @@ async def update_return_date(
     manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат"),
 ):
     """Отметка о возврате снаряжения"""
-    # Получаем запись об аренде
-    rental = await db.get(Rental, rental_id)
-    if not rental:
+    # Получаем запись об аренде с названием снаряжения
+    result = await db.execute(
+        select(Rental, Gear.name.label('gear_name'))
+        .join(Gear, Rental.gear_id == Gear.id)
+        .where(Rental.id == rental_id)
+    )
+    rental_data = result.first()
+    
+    if not rental_data:
         raise HTTPException(status_code=404, detail="Запись об аренде не найдена")
+    
+    rental, gear_name = rental_data
 
     # Проверяем менеджера
     manager_exists = await db.execute(
@@ -111,7 +139,13 @@ async def update_return_date(
     await db.commit()
     await db.refresh(rental)
     
-    return rental
+    # Добавляем название снаряжения к ответу
+    response_data = {
+        **{key: getattr(rental, key) for key in rental.__mapper__.attrs.keys()},
+        'gear_name': gear_name
+    }
+    
+    return response_data
 
 
 @router.patch("/{rental_id}", response_model=RentalResponse)
@@ -127,4 +161,17 @@ async def update_rental(
     
     await db.commit()
     await db.refresh(rental)
-    return rental
+    
+    # Получаем название снаряжения
+    result = await db.execute(
+        select(Gear.name).where(Gear.id == rental.gear_id)
+    )
+    gear_name = result.scalar()
+    
+    # Добавляем название снаряжения к ответу
+    response_data = {
+        **{key: getattr(rental, key) for key in rental.__mapper__.attrs.keys()},
+        'gear_name': gear_name
+    }
+    
+    return response_data

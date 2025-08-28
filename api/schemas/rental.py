@@ -24,17 +24,12 @@ class RentalReturn(BaseModel):
 class RentalResponse(RentalBase):
     """Схема для возврата данных об аренде"""
     id: int
-    user_telegram_id: int
     issue_manager_tg_id: int
     accept_manager_tg_id: int | None
-    gear_id: int
     issue_date: date
-    due_date: date
     return_date: date | None
-    quantity: int
-    comment: str | None
+    gear_name: str = Field(..., example="палатка red fox")
     
-
     class Config:
         from_attributes = True
 
