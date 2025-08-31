@@ -111,26 +111,27 @@ async def check_manager(
 
 @router.post("/search/", response_model=UserList)
 async def search_user(
-    search_query: UserSearch,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    search_query: UserSearch = None
 ):
-    name = search_query.name
-    phone = search_query.phone
-    
     query = select(User)
-    
-    # Динамически добавляем условия
-    filters = []
-    if name is not None:
-        filters.append(User.full_name.ilike(f"%{name}%"))
-    if phone is not None:
-        filters.append(User.phone == phone)
-    
-    if filters:
-        query = query.where(*filters)
-    else:
-        # Получение всех пользователей, если не заданы фильтры
-        pass
+    if search_query is not None:
+        name = search_query.name
+        phone = search_query.phone
+        
+        
+        # Динамически добавляем условия
+        filters = []
+        if name is not None:
+            filters.append(User.full_name.ilike(f"%{name}%"))
+        if phone is not None:
+            filters.append(User.phone == phone)
+        
+        if filters:
+            query = query.where(*filters)
+        else:
+            # Получение всех пользователей, если задан пустой запрос {}
+            pass
     
     # Выполняем запрос
     result = await db.execute(query)
