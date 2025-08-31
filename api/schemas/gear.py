@@ -41,14 +41,7 @@ class GearSearchResponse(BaseModel):
 
 class GearUpdate(BaseModel):
     """Схема для обновления данных снаряжения"""
-    name: str | None = Field(
-        None, 
-        min_length=1, 
-        max_length=100,
-        example="Новое название"
-    )
-    description: str | None = Field(
-        None, 
-        max_length=1000,
-        example="Обновленное описание"
-    )
+    name: str = Field(None, min_length=1, max_length=100, example="Кошки жесткие")
+    description: str = Field(None, max_length=1000, example="Починены 1.01.2025")
+    total_quantity: int = Field(None, gt=0)
+    available_count: int = Field(None, ge=0)
