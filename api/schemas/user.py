@@ -14,6 +14,14 @@ class UserResponse(UserBase):
     document: str | None
     is_manager: bool
 
+class UserSearch(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+
+class UserList(BaseModel):
+    users: list[UserResponse]
+
+
 class UserUpdate(BaseModel):
     """Схема для обновления данных пользователя"""
     full_name: str | None = Field(None, min_length=1, max_length=100)

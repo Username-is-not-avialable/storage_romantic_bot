@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from api.dependencies import get_current_user
-from api.schemas.user import UserCreate, UserResponse, UserUpdate
+from api.schemas.user import UserCreate, UserList, UserResponse, UserSearch, UserUpdate
 from api.database import User, get_db
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,6 +108,40 @@ async def check_manager(
     """Проверка статуса завснара"""
     return current_user.is_manager
 
+
+@router.post("/search/", response_model=UserList)
+async def search_user(
+    search_query: UserSearch,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    name = search_query.name
+    phone = search_query.phone
+    
+    query = select(User)
+    
+    # Динамически добавляем условия
+    filters = []
+    if name is not None:
+        filters.append(User.full_name.ilike(f"%{name}%"))
+    if phone is not None:
+        filters.append(User.phone == phone)
+    
+    if filters:
+        query = query.where(*filters)
+    else:
+        # Получение всех пользователей, если не заданы фильтры
+        pass
+    
+    # Выполняем запрос
+    result = await db.execute(query)
+    users = result.scalars().all()
+    
+    if not users:
+        raise HTTPException(status_code=404, detail="Ни один пользователь не найден")
+    
+    return {"users": users}
+    
+    
 
 @router.patch("/{id_telegram}", response_model=UserResponse)
 async def update_user(
