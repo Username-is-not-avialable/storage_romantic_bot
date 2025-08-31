@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from datetime import date
-from typing import Optional
+import re
+from pydantic import BaseModel, Field, field_validator, validator
+from datetime import date, datetime
+from typing import Any, Optional
 
 class RentalBase(BaseModel):
     """Базовая схема аренды"""
@@ -10,6 +11,29 @@ class RentalBase(BaseModel):
     due_date: date = Field(..., example="2024-06-20")
     event: Optional[str] = Field(None, max_length=100, example="Поход на Эльбрус")
     comment: Optional[str] = Field(None, max_length=500, example="Срочно!")
+
+    @field_validator('due_date', mode='before')
+    @classmethod
+    def parse_due_date(cls, value: Any) -> date:
+        if isinstance(value, date):
+            return value
+            
+        if isinstance(value, str):
+            # Проверяем формат дд.мм.гггг
+            if re.match(r'^\d{2}\.\d{2}\.\d{4}$', value):
+                day, month, year = map(int, value.split('.'))
+                return date(year, month, day)
+            # Также поддерживаем стандартный формат для обратной совместимости
+            elif re.match(r'^\d{4}-\d{2}-\d{2}$', value):
+                return date.fromisoformat(value)
+        
+        raise ValueError('Дата должна быть в формате дд.мм.гггг')
+
+    model_config = {
+        "json_encoders": {
+            date: lambda v: v.strftime('%d.%m.%Y') if v else None
+        }
+    }
 
 class RentalCreate(RentalBase):
     """Схема для создания записи об аренде"""
