@@ -39,6 +39,7 @@ services:
   #TODO: добавить depends on: api после добавления /health в api
   bot: 
     build: ./bot
+    restart: unless-stopped
 
 volumes:
   postgres_data:
