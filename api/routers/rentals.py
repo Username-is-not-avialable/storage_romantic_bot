@@ -123,6 +123,13 @@ async def update_return_date(
     if quantity is None:
         quantity = rental.quantity
 
+    if rental.return_date is not None:
+        raise HTTPException(status_code=400, detail="Данное снаряжение уже полностью возвращено")
+
+    if quantity > rental.quantity:
+        raise HTTPException(status_code=400, detail=f"Нельзя вернуть больше снаряжения, чем было взято. "
+                            + f"Вы пытаетесь вернуть: {quantity}. Можно вернуть: {rental.quantity}.")
+
     if rental.quantity == quantity:
         # Обновляем данные
         rental.return_date = datetime.now(timezone.utc)
