@@ -1,19 +1,44 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, Date, Boolean, ForeignKey, BigInteger
-from datetime import datetime
-from dotenv import load_dotenv
 import os
+from datetime import datetime
+
+from dotenv import load_dotenv
+from sqlalchemy import BigInteger, Boolean, Column, Date, ForeignKey, Integer, String
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
-user = os.getenv('DB_USER')
-password = os.getenv('DB_PASSWORD')
-db_name = os.getenv('DB_NAME')
-host = os.getenv('DB_HOST')
-DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@{host}:5432/{db_name}"
 
-engine = create_async_engine(DATABASE_URL)
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession)
+
+def _build_database_urls() -> tuple[str, str]:
+    """
+    Возвращает пару (sync_url, async_url).
+
+    - sync_url используется Alembic (psycopg2)
+    - async_url используется приложением (asyncpg)
+    """
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        sync_url = env_url
+    else:
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+        db_name = os.getenv("DB_NAME")
+        host = os.getenv("DB_HOST")
+        port = os.getenv("DB_PORT") or "5432"
+        sync_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+
+    async_url = (
+        sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if sync_url.startswith("postgresql://")
+        else sync_url
+    )
+    return sync_url, async_url
+
+
+SYNC_DATABASE_URL, ASYNC_DATABASE_URL = _build_database_urls()
+
+engine = create_async_engine(ASYNC_DATABASE_URL)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Базовый класс для моделей
 Base = declarative_base()
