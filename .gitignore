@@ -256,3 +256,4 @@ __marimo__/
 .streamlit/secrets.toml
 
 .vscode/
+.cursor/rules/db-connection.mdc
