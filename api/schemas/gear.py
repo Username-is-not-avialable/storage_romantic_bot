@@ -1,14 +1,23 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Any, Optional
 from datetime import date
 
 class GearBase(BaseModel):
     """Базовая схема снаряжения"""
-    name: str = Field(..., min_length=1, max_length=100, example="Палатка 4-местная RF Challenger")
-    total_quantity: int = Field(..., gt=0, example=10)
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        json_schema_extra={"example": "Палатка 4-местная RF Challenger"},
+    )
+    total_quantity: int = Field(..., gt=0, json_schema_extra={"example": 10})
     # available_count: Optional[int] = Field(None)
     available_count: int
-    description: Optional[str] = Field(None, max_length=1000, example="Водонепроницаемая, вес 5 кг")
+    description: Optional[str] = Field(
+        None,
+        max_length=1000,
+        json_schema_extra={"example": "Водонепроницаемая, вес 5 кг"},
+    )
 
     @model_validator(mode='before')
     def set_defaults(cls, data: Any) -> Any:
@@ -29,11 +38,10 @@ class GearCreate(GearBase):
 
 class GearResponse(GearBase):
     """Схема для возврата данных о снаряжении"""
-    id: int
-    available_count: int = Field(..., ge=0, example=7) #duplicates with field in base class
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True  # Для совместимости с ORM (альтернатива orm_mode в Pydantic v2)
+    id: int
+    available_count: int = Field(..., ge=0, json_schema_extra={"example": 7})  # duplicates with field in base class
 
 class GearSearchResponse(BaseModel):
     """Схема для возврата списка снаряжения"""
@@ -41,7 +49,16 @@ class GearSearchResponse(BaseModel):
 
 class GearUpdate(BaseModel):
     """Схема для обновления данных снаряжения"""
-    name: str = Field(None, min_length=1, max_length=100, example="Кошки жесткие")
-    description: str = Field(None, max_length=1000, example="Починены 1.01.2025")
+    name: str = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        json_schema_extra={"example": "Кошки жесткие"},
+    )
+    description: str = Field(
+        None,
+        max_length=1000,
+        json_schema_extra={"example": "Починены 1.01.2025"},
+    )
     total_quantity: int = Field(None, gt=0)
     available_count: int = Field(None, ge=0)

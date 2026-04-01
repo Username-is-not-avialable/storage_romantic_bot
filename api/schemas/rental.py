@@ -1,16 +1,18 @@
 import re
-from pydantic import BaseModel, Field, field_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from datetime import date, datetime
 from typing import Any, Optional
 
 class RentalBase(BaseModel):
     """Базовая схема аренды"""
-    user_telegram_id: int = Field(..., example=12345)
-    gear_id: int = Field(..., example=1)
-    quantity: int = Field(..., gt=0, example=2)
-    due_date: date = Field(..., example="2024-06-20")
-    event: Optional[str] = Field(None, max_length=100, example="Поход на Эльбрус")
-    comment: Optional[str] = Field(None, max_length=500, example="Срочно!")
+    user_telegram_id: int = Field(..., json_schema_extra={"example": 12345})
+    gear_id: int = Field(..., json_schema_extra={"example": 1})
+    quantity: int = Field(..., gt=0, json_schema_extra={"example": 2})
+    due_date: date = Field(..., json_schema_extra={"example": "20.06.2024"})
+    event: Optional[str] = Field(
+        None, max_length=100, json_schema_extra={"example": "Поход на Эльбрус"}
+    )
+    comment: Optional[str] = Field(None, max_length=500, json_schema_extra={"example": "Срочно!"})
 
     @field_validator('due_date', mode='before')
     @classmethod
@@ -29,15 +31,15 @@ class RentalBase(BaseModel):
         
         raise ValueError('Дата должна быть в формате дд.мм.гггг')
 
-    model_config = {
-        "json_encoders": {
-            date: lambda v: v.strftime('%d.%m.%Y') if v else None
-        }
-    }
+    model_config = ConfigDict()
+
+    @field_serializer("due_date")
+    def _ser_due_date(self, v: date) -> str:
+        return v.strftime("%d.%m.%Y")
 
 class RentalCreate(RentalBase):
     """Схема для создания записи об аренде"""
-    issue_manager_tg_id: int = Field(..., example=98765)
+    issue_manager_tg_id: int = Field(..., json_schema_extra={"example": 98765})
 
 
 class RentalReturn(BaseModel):
@@ -47,22 +49,33 @@ class RentalReturn(BaseModel):
 
 class RentalResponse(RentalBase):
     """Схема для возврата данных об аренде"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     issue_manager_tg_id: int
     accept_manager_tg_id: int | None
     issue_date: date
     return_date: date | None
-    gear_name: str = Field(..., example="палатка red fox")
-    
-    class Config:
-        from_attributes = True
+    gear_name: str = Field(..., json_schema_extra={"example": "палатка red fox"})
+
+    @field_serializer("issue_date")
+    def _ser_issue_date(self, v: date) -> str:
+        return v.strftime("%d.%m.%Y")
+
+    @field_serializer("return_date")
+    def _ser_return_date(self, v: date | None) -> str | None:
+        return v.strftime("%d.%m.%Y") if v else None
 
 class RentalsList(BaseModel):
     rentals: list[RentalResponse]
 
 class RentalUpdate(BaseModel):
-    user_telegram_id: int | None = Field(None, example=12345)
-    gear_id: int | None = Field(None, example=1)
-    due_date: date | None = Field(None, example="2024-12-31")
+    user_telegram_id: int | None = Field(None, json_schema_extra={"example": 12345})
+    gear_id: int | None = Field(None, json_schema_extra={"example": 1})
+    due_date: date | None = Field(None, json_schema_extra={"example": "31.12.2024"})
     event: str | None = Field(None, max_length=100)
     comment: str | None = Field(None, max_length=500)
+
+    @field_serializer("due_date")
+    def _ser_due_date(self, v: date | None) -> str | None:
+        return v.strftime("%d.%m.%Y") if v else None
