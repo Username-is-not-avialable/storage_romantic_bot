@@ -4,7 +4,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from api.database import Base, SYNC_DATABASE_URL  # noqa: F401
+from api.config import get_settings
+from api.database import Base
 
 config = context.config
 
@@ -18,7 +19,7 @@ def _get_sqlalchemy_url() -> str:
     override = os.getenv("ALEMBIC_DATABASE_URL")
     if override:
         return override
-    return SYNC_DATABASE_URL
+    return get_settings().build_sync_database_url()
 
 
 def run_migrations_offline() -> None:

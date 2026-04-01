@@ -27,8 +27,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL:
-        postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-app_user}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DB_NAME: ${DB_NAME:-storage_db}
     ports:
       - "8100:8000"
     volumes:

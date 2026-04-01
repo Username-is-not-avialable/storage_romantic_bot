@@ -1,18 +1,17 @@
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from dotenv import load_dotenv
-import os
+from api.config import get_settings
 
 # Конфигурация БД (замените на свои значения)
 
-load_dotenv()
+settings = get_settings()
 DB_CONFIG = {
-    "host": os.getenv('DB_HOST'),
-    "port": os.getenv('DB_PORT'),
-    "user": os.getenv('DB_USER'),
-    "password": os.getenv('DB_PASSWORD'),
-    "database": os.getenv('DB_NAME')  # Будет создана если не существует
+    "host": settings.db_host,
+    "port": settings.db_port,
+    "user": settings.db_user,
+    "password": settings.db_password,
+    "database": settings.db_name,  # Будет создана если не существует
 }
 
 
