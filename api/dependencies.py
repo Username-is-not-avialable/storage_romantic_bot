@@ -1,3 +1,5 @@
+from typing import Callable
+
 from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, User, get_db
@@ -16,6 +18,26 @@ async def get_current_user(
             detail="User not found"
         )
     return user
+
+
+def require_roles(*allowed_roles: str) -> Callable[[User], User]:
+    allowed: set[str] = set(allowed_roles)
+
+    async def _require(current_user: User = Depends(get_current_user)) -> User:
+        role = getattr(current_user, "role", None)
+        if role not in allowed:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return current_user
+
+    return _require
+
+
+def require_manager_or_admin() -> Callable[[User], User]:
+    return require_roles("manager", "admin")
+
+
+def require_admin() -> Callable[[User], User]:
+    return require_roles("admin")
 
 
 

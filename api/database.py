@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, Date, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, Date, ForeignKey, Integer, String
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -25,7 +25,7 @@ class User(Base):
     full_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
     document = Column(String(100), nullable=True)
-    is_manager = Column(Boolean, default=False)
+    role = Column(String(20), nullable=False, default="member")
 
 # Модель снаряжения
 class Gear(Base):

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, User, get_db
-from api.dependencies import get_valid_rental
+from api.dependencies import get_valid_rental, require_manager_or_admin
 from api.schemas.rental import RentalCreate, RentalResponse, RentalUpdate, RentalsList
 from datetime import datetime, timezone
 
@@ -11,7 +11,8 @@ router = APIRouter(prefix="/api/rentals", tags=["Rentals"])
 
 @router.post("/", response_model=RentalResponse)
 async def add_record(rental: RentalCreate, 
-                     db: Annotated[AsyncSession, Depends(get_db)]):
+                     db: Annotated[AsyncSession, Depends(get_db)],
+                     _: User = Depends(require_manager_or_admin())):
     """Добавление записи о выдаче снаряжения"""
     # Проверка существования снаряжения
     gear = await db.get(Gear, rental.gear_id)
@@ -99,6 +100,7 @@ async def update_return_date(
     db: Annotated[AsyncSession, Depends(get_db)],
     quantity: int = Query(default=None, description="количество единиц возвращаемого снаряжения данного типа"),
     manager_tg_id: int = Query(..., description="ID менеджера, подтверждающего возврат"),
+    _: User = Depends(require_manager_or_admin()),
 ):
     """Отметка о возврате снаряжения"""
     # Получаем запись об аренде с названием снаряжения
@@ -160,7 +162,8 @@ async def update_rental(
     rental_id: int,
     rental_data: RentalUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    rental: Rental = Depends(get_valid_rental)
+    rental: Rental = Depends(get_valid_rental),
+    _: User = Depends(require_manager_or_admin()),
 ):
     update_data = rental_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():

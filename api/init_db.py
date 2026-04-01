@@ -58,7 +58,7 @@ def create_tables():
             full_name TEXT NOT NULL,
             phone TEXT NOT NULL,
             document TEXT,
-            is_manager BOOLEAN DEFAULT FALSE
+            role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member', 'manager', 'admin'))
         )
         """,
         """

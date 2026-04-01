@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_manager_or_admin
 from api.schemas.user import UserCreate, UserList, UserResponse, UserSearch, UserUpdate
 from api.database import User, get_db
 from sqlalchemy import select
@@ -31,7 +31,7 @@ async def add_user(
         full_name=user.full_name,
         phone=user.phone,
         document=user.document,
-        is_manager=user.is_manager
+        role=user.role,
     )
     
     # Добавляем в сессию и сохраняем
@@ -99,20 +99,20 @@ async def update_document(
             detail=f"Ошибка при обновлении: {str(e)}"
         )
 
-@router.get("/{id_telegram}/is_manager")
-async def check_manager(
+@router.get("/{id_telegram}/role", response_model=dict)
+async def get_user_role(
     id_telegram: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: User = Depends(get_current_user)
 ):
-    """Проверка статуса завснара"""
-    return current_user.is_manager
+    return {"role": current_user.role}
 
 
 @router.post("/search/", response_model=UserList)
 async def search_user(
     db: Annotated[AsyncSession, Depends(get_db)],
-    search_query: UserSearch = None
+    search_query: UserSearch = None,
+    _: User = Depends(require_manager_or_admin()),
 ):
     query = select(User)
     if search_query is not None:

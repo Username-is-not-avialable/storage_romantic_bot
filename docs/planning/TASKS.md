@@ -52,7 +52,7 @@
 ## Epic 1 - Роли и безопасность
 ### T-010 Реализовать RBAC (`member`, `manager`, `admin`)
 - Priority: P0
-- Status: todo
+- Status: done
 - DoD:
   - Роли хранятся явно в БД.
   - Доступ к manager/admin endpoints ограничен.

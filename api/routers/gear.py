@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from api.database import User, get_db, Gear
-from api.dependencies import get_current_user, get_valid_gear
+from api.dependencies import get_current_user, get_valid_gear, require_manager_or_admin
 from api.schemas.gear import GearCreate, GearResponse, GearSearchResponse, GearUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_, select
@@ -11,7 +11,8 @@ router = APIRouter(prefix="/api/gear", tags=["Gear"])
 @router.post("/", response_model=GearResponse)
 async def add_gear(
     gear: GearCreate,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: User = Depends(require_manager_or_admin()),
 ):
 
     result = await db.execute(select(Gear).where(Gear.name == gear.name))
@@ -68,7 +69,8 @@ async def update_gear(
     gear_id: int,
     gear_data: GearUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    gear: Gear = Depends(get_valid_gear)
+    gear: Gear = Depends(get_valid_gear),
+    _: User = Depends(require_manager_or_admin()),
 ):
     """Обновление информации о снаряжении"""
 
