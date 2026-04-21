@@ -86,7 +86,7 @@
 #### 5.2.3 `rental_events` (события по аренде)
 - Назначение: append-only журнал событий жизненного цикла аренды (аудит и история).
 - Типы событий (минимум):
-  - `ISSUE` (выдача оформлена)
+  - `ISSUE` (выдача оформлена, запрос принят)
   - `RETURN_PARTIAL` (частичный возврат)
   - `RETURN_FINAL` (окончательный возврат; после него аренда закрыта)
 - Поля (минимум):
@@ -111,7 +111,7 @@
 
 ### 5.3 Обязательные расширения
 - `Role`/`UserRole`: явные роли (`member`, `manager`, `admin`) вместо одного `is_manager`.
-- `BookingRequest`:
+- `BookingRequest` (`rental_requests` + `rental_request_items`):
   - статус: `pending`, `approved`, `rejected`, `cancelled`, `expired`
   - состав: позиции и количества
   - залоговый документ
@@ -135,7 +135,7 @@
 - Продление возможно только для активной и просроченной аренды.
 - Правила допуска при неактивном/отсутствующем/неизвестном взносе:
   - одобрение бронирований и выдача разрешены при любом статусе взноса на момент `approve/issue`;
-  - факт того, какой статус завснар видел в этот момент, фиксируется append-only снапшотом `rental_events.fee_status_snapshot`;
+  - факт того, какой статус завснар видел в этот момент, фиксируется append-only снапшотом `rental_events.fee_status_snapshot` (при issue/returns);
   - обновление `MembershipStatus` из Excel не перезаписывает уже созданные события.
 
 ## 7. API-контракты (целевые)
@@ -153,11 +153,10 @@
 - `GET /api/gear/{id}`
 - `GET /api/availability?gear_id=&from=&to=`
 
-### 7.3 Заявки
-- `POST /api/bookings`
-- `GET /api/bookings/my`
-- `GET /api/manager/bookings?status=pending`
-- `PATCH /api/manager/bookings/{id}` (approve/reject + comment)
+### 7.3 Заявки на выдачу (rental requests; не путать с бронированием)
+- `POST /api/rental-requests`
+- `PATCH /api/rental-requests/{id}` (изменение состава/полей пока `pending`)
+- `PATCH /api/manager/rental-requests/{id}` (approve/reject + comment)
 
 ### 7.4 Аренды
 - `POST /api/rentals/issue`
@@ -212,7 +211,7 @@
 - Есть каркас FastAPI, сущности `User`, `Gear`, `Rental`.
 - Есть базовые роуты для пользователей, снаряжения и аренд.
 - Нет полноценных ролей `admin/member/manager` (только `is_manager`).
-- Нет отдельного слоя заявок (bookings), продлений и задолженностей как отдельной модели.
+- Нет отдельного слоя бронирований (bookings), продлений и задолженностей как отдельной модели.
 - Нет интеграции Excel-взносов, Telegram/VK адаптеров и планировщика уведомлений.
 
 ## 12. Критичные открытые вопросы

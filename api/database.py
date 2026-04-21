@@ -1,6 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, Date, ForeignKey, Integer, String
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -52,6 +62,41 @@ class Rental(Base):
     quantity = Column(Integer, nullable=False)
     event = Column(String(300), nullable=False) #TODO: определить подходящее ограничение
     comment = Column(String(300), nullable=True) #TODO: определить подходящее ограничение
+
+
+class RentalRequest(Base):
+    __tablename__ = "rental_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_telegram_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+
+    # pending/approved/rejected/cancelled/expired
+    status = Column(String(20), nullable=False, default="pending")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    due_date = Column(Date, nullable=False)
+    event = Column(String(300), nullable=False)
+    comment = Column(String(300), nullable=True)
+
+    deposit_document = Column(String(300), nullable=True)
+
+    # Поля решения менеджера (для выборок и отображения)
+    decision_manager_tg_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=True)
+    decision_comment = Column(String(300), nullable=True)
+
+
+class RentalRequestItem(Base):
+    __tablename__ = "rental_request_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rental_request_id = Column(Integer, ForeignKey("rental_requests.id"), nullable=False)
+    gear_id = Column(Integer, ForeignKey("gear.id"), nullable=False)
+    qty_requested = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("rental_request_id", "gear_id", name="uq_rental_request_gear"),
+        CheckConstraint("qty_requested > 0", name="ck_rental_request_items_qty_positive"),
+    )
 
 async def get_db():
     async with AsyncSessionLocal() as session:
