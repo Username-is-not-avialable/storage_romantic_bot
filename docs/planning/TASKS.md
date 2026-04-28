@@ -129,14 +129,14 @@
 
 ### T-034 Операция приема и частичного возврата
 - Priority: P0
-- Status: todo
+- Status: done
 - DoD:
   - Поддержка частичного возврата без потери истории.
   - При полном возврате аренда закрывается.
 
 ### T-037 Перейти на целевую модель аренд (events + items, append-only)
 - Priority: P0
-- Status: todo
+- Status: done
 - DoD:
   - Реализованы таблицы/модели: `rentals`, `rental_items`, `rental_events`, `rental_event_items`.
   - Возвраты фиксируются только через события (`RETURN_PARTIAL`/`RETURN_FINAL`) без перезаписи истории.

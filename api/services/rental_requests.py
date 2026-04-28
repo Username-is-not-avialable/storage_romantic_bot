@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import Gear, Rental, RentalRequest, RentalRequestItem
+from api.services.rentals import issue_rental
 
 
 async def get_rental_request_by_id(
@@ -54,7 +55,7 @@ async def create_rental_request(
         status="pending",
     )
     session.add(rental_request)
-    await session.flush()  # чтобы получить rental_request.id
+    await session.flush()
 
     for item in items_list:
         session.add(
@@ -111,8 +112,8 @@ async def approve_rental_request(
     manager_comment: str | None,
 ) -> Rental:
     """
-    Принимает заявку: проверяет наличие инвентаря, уменьшает available_count
-    и создает Rental(ы) (по текущей модели - по одной строке аренды на gear_id).
+    Принимает заявку: проверяет наличие инвентаря и создаёт одну аренду-документ
+    с составом и событием ISSUE.
     """
 
     items_result = await session.execute(
@@ -125,45 +126,24 @@ async def approve_rental_request(
     if not request_items:
         raise ValueError("Заявка не содержит позиций")
 
-    gear_ids = [ri.gear_id for ri in request_items]
-    gear_result = await session.execute(
-        select(Gear).where(Gear.id.in_(gear_ids))
+    lines = [(ri.gear_id, ri.qty_requested) for ri in request_items]
+
+    rental = await issue_rental(
+        session=session,
+        user_telegram_id=rental_request.user_telegram_id,
+        issue_manager_tg_id=manager_id,
+        due_date=rental_request.due_date,
+        event=rental_request.event,
+        comment=rental_request.comment,
+        lines=lines,
+        fee_status_snapshot=None,
     )
-    gears = {g.id: g for g in gear_result.scalars().all()}
-
-    for ri in request_items:
-        gear = gears.get(ri.gear_id)
-        if gear is None:
-            raise ValueError("Снаряжение не найдено")
-        if ri.qty_requested > gear.available_count:
-            raise ValueError(
-                f"Недостаточно снаряжения: gear_id={ri.gear_id}, доступно={gear.available_count}, нужно={ri.qty_requested}"
-            )
-
-    created_rentals: list[Rental] = []
-    for ri in request_items:
-        gear = gears[ri.gear_id]
-        gear.available_count -= ri.qty_requested
-
-        rental = Rental(
-            user_telegram_id=rental_request.user_telegram_id,
-            issue_manager_tg_id=manager_id,
-            accept_manager_tg_id=None,
-            gear_id=ri.gear_id,
-            due_date=rental_request.due_date,
-            return_date=None,
-            quantity=ri.qty_requested,
-            event=rental_request.event,
-            comment=rental_request.comment,
-        )
-        session.add(rental)
-        created_rentals.append(rental)
 
     rental_request.status = "approved"
     rental_request.decision_manager_tg_id = manager_id
     rental_request.decision_comment = manager_comment
 
-    return created_rentals[0]
+    return rental
 
 
 async def reject_rental_request(

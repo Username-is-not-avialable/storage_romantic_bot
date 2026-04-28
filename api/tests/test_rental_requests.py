@@ -3,7 +3,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.database import Gear, Rental, RentalRequest
+from api.database import Gear, Rental, RentalEvent, RentalItem, RentalRequest
 from api.main import app
 from api.database import User
 
@@ -116,13 +116,29 @@ async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
     gear_after = gear_res.scalars().first()
     assert gear_after.available_count == 8
 
-    # Проверяем created rentals
     rentals_res = await test_db_session.execute(
-        select(Rental).where(Rental.user_telegram_id == 1, Rental.gear_id == gear.id)
+        select(Rental).where(Rental.user_telegram_id == 1)
     )
     rentals = rentals_res.scalars().all()
     assert len(rentals) == 1
-    assert rentals[0].quantity == 2
+    r = rentals[0]
+    assert r.status == "active"
+
+    items_res = await test_db_session.execute(
+        select(RentalItem).where(RentalItem.rental_id == r.id)
+    )
+    items = items_res.scalars().all()
+    assert len(items) == 1
+    assert items[0].qty_issued == 2
+    assert items[0].gear_id == gear.id
+
+    ev_res = await test_db_session.execute(
+        select(RentalEvent).where(
+            RentalEvent.rental_id == r.id,
+            RentalEvent.type == "ISSUE",
+        )
+    )
+    assert ev_res.scalars().first() is not None
 
     req_res = await test_db_session.execute(
         select(RentalRequest).where(RentalRequest.id == request_id)
@@ -168,4 +184,3 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
     req_row = req_res.scalars().first()
     assert req_row is not None
     assert req_row.status == "pending"
-

@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, User, get_db
 from api.services.gear import get_gear_by_id
-from api.services.rental import get_rental_by_id
+from api.services.rentals import get_rental_by_id
 from api.services.user import get_user_by_telegram_id
 
 async def get_current_user(
