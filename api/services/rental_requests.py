@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from sqlalchemy import select
+from datetime import date
+
+from sqlalchemy import Select, asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import Gear, Rental, RentalRequest, RentalRequestItem
@@ -17,6 +19,39 @@ async def get_rental_request_by_id(
         select(RentalRequest).where(RentalRequest.id == rental_request_id)
     )
     return result.scalars().first()
+
+
+def build_manager_rental_requests_query(
+    *,
+    status: str | None,
+    user_id: int | None,
+    due_date_from: date | None,
+    due_date_to: date | None,
+    created_from: date | None,
+    created_to: date | None,
+    sort_order: str,
+) -> Select:
+    """Строит SQL-запрос очереди заявок с фильтрами и сортировкой."""
+
+    q = select(RentalRequest)
+
+    if status:
+        q = q.where(RentalRequest.status == status)
+    if user_id is not None:
+        q = q.where(RentalRequest.user_telegram_id == user_id)
+    if due_date_from is not None:
+        q = q.where(RentalRequest.due_date >= due_date_from)
+    if due_date_to is not None:
+        q = q.where(RentalRequest.due_date <= due_date_to)
+    if created_from is not None:
+        q = q.where(RentalRequest.created_at >= created_from)
+    if created_to is not None:
+        q = q.where(RentalRequest.created_at < created_to)
+
+    order_fn = asc if sort_order == "asc" else desc
+    q = q.order_by(order_fn(RentalRequest.created_at))
+
+    return q
 
 
 async def create_rental_request(

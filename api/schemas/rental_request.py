@@ -85,6 +85,15 @@ class RentalRequestResponse(RentalRequestBase):
     id: int
     user_telegram_id: int
     status: str
+    created_at: datetime
     decision_comment: str | None = None
     items: list[RentalRequestItemResponse]
+
+    @field_serializer("created_at")
+    def _ser_created_at(self, v: datetime) -> str:
+        return v.isoformat()
+
+
+class ManagerRentalRequestsList(BaseModel):
+    requests: list[RentalRequestResponse]
 

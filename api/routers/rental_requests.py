@@ -1,4 +1,5 @@
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import RentalRequest, RentalRequestItem, User, get_db
 from api.dependencies import require_manager_or_admin, require_roles
 from api.schemas.rental_request import (
+    ManagerRentalRequestsList,
     RentalRequestCreate,
     RentalRequestDecision,
     RentalRequestResponse,
@@ -14,6 +16,7 @@ from api.schemas.rental_request import (
 )
 from api.services.rental_requests import (
     approve_rental_request,
+    build_manager_rental_requests_query,
     create_rental_request,
     get_rental_request_by_id,
     reject_rental_request,
@@ -41,6 +44,7 @@ async def _rental_request_to_response(
     return RentalRequestResponse(
         id=rental_request.id,
         user_telegram_id=rental_request.user_telegram_id,
+        created_at=rental_request.created_at,
         due_date=rental_request.due_date,
         event=rental_request.event,
         comment=rental_request.comment,
@@ -127,6 +131,39 @@ async def update_rental_request_endpoint(
 
     await db.refresh(rental_request)
     return await _rental_request_to_response(db=db, rental_request=rental_request)
+
+
+@manager_router.get("/", response_model=ManagerRentalRequestsList)
+async def list_manager_rental_requests_endpoint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: User = Depends(require_manager_or_admin()),
+    status: Literal["pending", "approved", "rejected"] | None = None,
+    user_id: int | None = None,
+    due_date_from: date | None = None,
+    due_date_to: date | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    sort_order: Literal["asc", "desc"] = "desc",
+):
+    """Очередь заявок для менеджера с фильтрами и сортировкой."""
+
+    q = build_manager_rental_requests_query(
+        status=status,
+        user_id=user_id,
+        due_date_from=due_date_from,
+        due_date_to=due_date_to,
+        created_from=created_from,
+        created_to=created_to,
+        sort_order=sort_order,
+    )
+    result = await db.execute(q)
+    requests = result.scalars().all()
+    return ManagerRentalRequestsList(
+        requests=[
+            await _rental_request_to_response(db=db, rental_request=request)
+            for request in requests
+        ]
+    )
 
 
 @manager_router.patch("/{rental_request_id}", response_model=RentalRequestResponse)

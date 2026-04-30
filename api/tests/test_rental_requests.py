@@ -184,3 +184,60 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
     req_row = req_res.scalars().first()
     assert req_row is not None
     assert req_row.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_manager_queue_supports_filters(
+    test_db_session: AsyncSession,
+):
+    await _seed_users(test_db_session)
+    gear = await _seed_gear(test_db_session, name="TentQueue", total=10, available=10)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        first_resp = await ac.post(
+            "/api/rental-requests/?id_telegram=1",
+            json={
+                "due_date": "10.04.2026",
+                "event": "Later trip",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert first_resp.status_code == 200
+        first_id = first_resp.json()["id"]
+
+        second_resp = await ac.post(
+            "/api/rental-requests/?id_telegram=1",
+            json={
+                "due_date": "03.04.2026",
+                "event": "Urgent trip",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert second_resp.status_code == 200
+        second_id = second_resp.json()["id"]
+
+        reject_resp = await ac.patch(
+            f"/api/manager/rental-requests/{first_id}?id_telegram=2",
+            json={"decision": "reject", "comment": "declined"},
+        )
+        assert reject_resp.status_code == 200
+
+        queue_resp = await ac.get(
+            "/api/manager/rental-requests/?id_telegram=2"
+            "&status=pending&sort_order=asc"
+        )
+        assert queue_resp.status_code == 200
+        payload = queue_resp.json()
+        assert len(payload["requests"]) == 1
+        assert payload["requests"][0]["id"] == second_id
+        assert payload["requests"][0]["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_manager_queue_forbidden_for_member(test_db_session: AsyncSession):
+    await _seed_users(test_db_session)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/api/manager/rental-requests/?id_telegram=1")
+        assert resp.status_code == 403
