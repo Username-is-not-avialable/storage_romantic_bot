@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.database import Gear, Rental, User, get_db
-from api.dependencies import get_valid_rental, require_manager_or_admin
+from api.dependencies import get_current_user, get_valid_rental, require_manager_or_admin
 from api.schemas.rental import (
     RentalIssueCreate,
     RentalResponse,
@@ -112,6 +113,54 @@ async def get_active_rentals(
     out: list[RentalResponse] = []
     for r in rentals:
         out.append(await _build_rental_response(db, r))
+    return RentalsList(rentals=out)
+
+
+@router.get("/debtors", response_model=RentalsList)
+async def get_debtors(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: User = Depends(require_manager_or_admin()),
+):
+    """Список просроченных аренд (status=active и due_date < today)."""
+    q = (
+        select(Rental)
+        .options(selectinload(Rental.items))
+        .where(
+            Rental.status == "active",
+            Rental.due_date < date.today(),
+        )
+    )
+    result = await db.execute(q)
+    rentals = result.scalars().unique().all()
+    out: list[RentalResponse] = []
+    for rental in rentals:
+        out.append(await _build_rental_response(db, rental))
+    return RentalsList(rentals=out)
+
+
+@router.get("/history/{user_telegram_id}", response_model=RentalsList)
+async def get_member_rental_history(
+    user_telegram_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: User = Depends(get_current_user),
+):
+    """
+    История участника: только объекты Rental, связанные с user_telegram_id.
+    """
+    if current_user.role not in {"manager", "admin"} and current_user.id_telegram != user_telegram_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    q = (
+        select(Rental)
+        .options(selectinload(Rental.items))
+        .where(Rental.user_telegram_id == user_telegram_id)
+        .order_by(Rental.id.desc())
+    )
+    result = await db.execute(q)
+    rentals = result.scalars().unique().all()
+    out: list[RentalResponse] = []
+    for rental in rentals:
+        out.append(await _build_rental_response(db, rental))
     return RentalsList(rentals=out)
 
 

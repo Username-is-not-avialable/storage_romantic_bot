@@ -1,5 +1,6 @@
 import pytest
 import httpx
+from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,3 +147,46 @@ async def test_return_exceeds_outstanding_400(test_db_session: AsyncSession):
             },
         )
         assert bad.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: AsyncSession):
+    await _seed_users(test_db_session)
+    g = await _seed_gear(test_db_session, name="DebtorGear", total=10, available=10)
+
+    old_due = (date.today() - timedelta(days=2)).isoformat()
+    future_due = (date.today() + timedelta(days=5)).isoformat()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        overdue_resp = await ac.post(
+            "/api/rentals/issue?id_telegram=2",
+            json={
+                "user_telegram_id": 1,
+                "issue_manager_tg_id": 2,
+                "due_date": old_due,
+                "event": "Overdue trip",
+                "items": [{"gear_id": g.id, "qty": 1}],
+            },
+        )
+        assert overdue_resp.status_code == 200
+        overdue_id = overdue_resp.json()["id"]
+
+        in_time_resp = await ac.post(
+            "/api/rentals/issue?id_telegram=2",
+            json={
+                "user_telegram_id": 1,
+                "issue_manager_tg_id": 2,
+                "due_date": future_due,
+                "event": "Future trip",
+                "items": [{"gear_id": g.id, "qty": 1}],
+            },
+        )
+        assert in_time_resp.status_code == 200
+
+        debtors_resp = await ac.get("/api/rentals/debtors?id_telegram=2")
+        assert debtors_resp.status_code == 200
+        debtors = debtors_resp.json()["rentals"]
+        assert len(debtors) == 1
+        assert debtors[0]["id"] == overdue_id
+        assert debtors[0]["status"] == "active"
