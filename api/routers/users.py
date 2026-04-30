@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from api.dependencies import get_current_user, require_manager_or_admin
-from api.schemas.user import UserCreate, UserList, UserResponse, UserSearch, UserUpdate
+from api.dependencies import get_current_user
+from api.schemas.user import UserCreate, UserResponse, UserUpdate
 from api.database import User, get_db
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,85 +62,6 @@ async def get_user(
         )
     
     return user
-    
-    
-
-@router.patch("/{id_telegram}/document", deprecated=True)
-async def update_document(
-    id_telegram: int,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    doc_name: str | None = None,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Обновление документа пользователя
-    
-    Параметры:
-    - id_telegram: ID пользователя в Telegram
-    - doc_name: Название документа (опционально)
-    - current_user: Авторизованный пользователь (из зависимости)
-    """
-
-    # Обновляем документ
-    current_user.document = doc_name  # None очистит документ
-    
-    try:
-        await db.commit()
-        await db.refresh(current_user)
-        return {
-            "status": "success",
-            "id_telegram": id_telegram,
-            "new_document": doc_name
-        }
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ошибка при обновлении: {str(e)}"
-        )
-
-@router.get("/{id_telegram}/role", response_model=dict)
-async def get_user_role(
-    id_telegram: int,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(get_current_user)
-):
-    return {"role": current_user.role}
-
-
-@router.post("/search/", response_model=UserList)
-async def search_user(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    search_query: UserSearch = None,
-    _: User = Depends(require_manager_or_admin()),
-):
-    query = select(User)
-    if search_query is not None:
-        name = search_query.name
-        phone = search_query.phone
-        
-        
-        # Динамически добавляем условия
-        filters = []
-        if name is not None:
-            filters.append(User.full_name.ilike(f"%{name}%"))
-        if phone is not None:
-            filters.append(User.phone == phone)
-        
-        if filters:
-            query = query.where(*filters)
-        else:
-            # Получение всех пользователей, если задан пустой запрос {}
-            pass
-    
-    # Выполняем запрос
-    result = await db.execute(query)
-    users = result.scalars().all()
-    
-    if not users:
-        raise HTTPException(status_code=404, detail="Ни один пользователь не найден")
-    
-    return {"users": users}
     
     
 

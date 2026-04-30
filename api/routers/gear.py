@@ -1,12 +1,42 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from api.database import User, get_db, Gear
-from api.dependencies import get_current_user, get_valid_gear, require_manager_or_admin
+from api.dependencies import get_valid_gear, require_manager_or_admin
 from api.schemas.gear import GearCreate, GearResponse, GearSearchResponse, GearUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/api/gear", tags=["Gear"])
+
+
+@router.get("/", response_model=GearSearchResponse)
+async def list_gear(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    query: str | None = None,
+    page: int = 1,
+    limit: int = 20,
+):
+    """Список снаряжения с поиском и пагинацией."""
+    if query is not None and len(query.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Параметр query должен содержать минимум 3 символа")
+    if page < 1:
+        raise HTTPException(status_code=400, detail="Параметр page должен быть >= 1")
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="Параметр limit должен быть в диапазоне 1..100")
+
+    q = select(Gear)
+    if query:
+        q = q.where(
+            or_(
+                Gear.name.ilike(f"%{query}%"),
+                Gear.description.ilike(f"%{query}%"),
+            )
+        )
+
+    q = q.order_by(Gear.id.asc()).offset((page - 1) * limit).limit(limit)
+    result = await db.execute(q)
+    items = result.scalars().all()
+    return GearSearchResponse(items=items)
 
 @router.post("/", response_model=GearResponse)
 async def add_gear(
@@ -48,21 +78,6 @@ async def get_gear(gear_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
         )
     
     return gear
-
-@router.get("/search/{name}", response_model=GearSearchResponse)
-async def get_gear_by_name(name: str, db: Annotated[AsyncSession, Depends(get_db)]):
-    """Поиск по названию"""
-    result = await db.execute(
-        select(Gear).where(
-            or_(
-                Gear.name.ilike(f"%{name}%"), 
-                Gear.description.ilike(f"%{name}%")
-            )
-        )
-    )
-    gear_list = result.scalars().all()
-
-    return GearSearchResponse(items=gear_list)
 
 @router.patch("/{gear_id}", response_model=GearResponse)
 async def update_gear(
