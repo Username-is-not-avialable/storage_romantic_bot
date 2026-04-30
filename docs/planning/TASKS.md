@@ -44,7 +44,7 @@
 
 ### T-006 Привести конфигурацию подключения к БД к единому источнику
 - Priority: P1
-- Status: todo
+- Status: done
 - DoD:
   - API использует единый механизм конфигурации DSN (например `DATABASE_URL`) согласованный с `docker-compose.yml`.
   - Нет “двух истин” (ручной `init_db.py` и отдельная сборка DSN в runtime без учета compose env).
