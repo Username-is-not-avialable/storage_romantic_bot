@@ -73,8 +73,8 @@ async def outstanding_by_gear(session: AsyncSession, rental: Rental) -> dict[int
 async def issue_rental(
     *,
     session: AsyncSession,
-    user_telegram_id: int,
-    issue_manager_tg_id: int,
+    user_id: int,
+    issue_manager_id: int,
     due_date: date,
     event: str,
     comment: str | None,
@@ -108,8 +108,8 @@ async def issue_rental(
     now = datetime.now(timezone.utc)
 
     rental = Rental(
-        user_telegram_id=user_telegram_id,
-        issue_manager_tg_id=issue_manager_tg_id,
+        user_id=user_id,
+        issue_manager_id=issue_manager_id,
         issue_date=eff_issue_date,
         due_date=due_date,
         event=event,
@@ -136,7 +136,7 @@ async def issue_rental(
             rental_id=rental.id,
             type=RENTAL_ISSUE,
             created_at=now,
-            manager_id=issue_manager_tg_id,
+            manager_id=issue_manager_id,
             comment=None,
             fee_status_snapshot=fee_status_snapshot,
         )

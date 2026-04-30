@@ -41,9 +41,9 @@ def upgrade() -> None:
     op.create_table(
         "rentals",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_telegram_id", sa.BigInteger(), nullable=False),
-        sa.Column("issue_manager_tg_id", sa.BigInteger(), nullable=False),
-        sa.Column("accept_manager_tg_id", sa.BigInteger(), nullable=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column("issue_manager_id", sa.BigInteger(), nullable=False),
+        sa.Column("accept_manager_id", sa.BigInteger(), nullable=True),
         sa.Column("gear_id", sa.Integer(), nullable=False),
         sa.Column("issue_date", sa.Date(), nullable=False),
         sa.Column("due_date", sa.Date(), nullable=False),
@@ -52,9 +52,9 @@ def upgrade() -> None:
         sa.Column("event", sa.String(length=300), nullable=False),
         sa.Column("comment", sa.String(length=300), nullable=True),
         sa.ForeignKeyConstraint(["gear_id"], ["gear.id"]),
-        sa.ForeignKeyConstraint(["user_telegram_id"], ["users.id_telegram"]),
-        sa.ForeignKeyConstraint(["issue_manager_tg_id"], ["users.id_telegram"]),
-        sa.ForeignKeyConstraint(["accept_manager_tg_id"], ["users.id_telegram"]),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id_telegram"]),
+        sa.ForeignKeyConstraint(["issue_manager_id"], ["users.id_telegram"]),
+        sa.ForeignKeyConstraint(["accept_manager_id"], ["users.id_telegram"]),
         sa.PrimaryKeyConstraint("id"),
     )
 

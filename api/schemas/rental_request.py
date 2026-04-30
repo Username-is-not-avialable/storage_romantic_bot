@@ -83,7 +83,7 @@ class RentalRequestResponse(RentalRequestBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    user_telegram_id: int
+    user_id: int
     status: str
     created_at: datetime
     decision_comment: str | None = None

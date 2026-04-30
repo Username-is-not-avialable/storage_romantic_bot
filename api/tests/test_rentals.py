@@ -40,10 +40,10 @@ async def test_issue_two_gear_positions(test_db_session: AsyncSession):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post(
-            "/api/rentals/issue?id_telegram=2",
+            "/api/rentals/issue?user_id=2",
             json={
-                "user_telegram_id": 1,
-                "issue_manager_tg_id": 2,
+                "user_id": 1,
+                "issue_manager_id": 2,
                 "due_date": "15.06.2026",
                 "event": "Hike",
                 "comment": None,
@@ -73,10 +73,10 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         issue = await ac.post(
-            "/api/rentals/issue?id_telegram=2",
+            "/api/rentals/issue?user_id=2",
             json={
-                "user_telegram_id": 1,
-                "issue_manager_tg_id": 2,
+                "user_id": 1,
+                "issue_manager_id": 2,
                 "due_date": "15.06.2026",
                 "event": "Hike",
                 "items": [{"gear_id": g.id, "qty": 4}],
@@ -86,9 +86,9 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
         rental_id = issue.json()["id"]
 
         part = await ac.patch(
-            f"/api/rentals/{rental_id}/return?id_telegram=2",
+            f"/api/rentals/{rental_id}/return?user_id=2",
             json={
-                "manager_tg_id": 2,
+                "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 1}],
             },
         )
@@ -97,9 +97,9 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
         assert part.json()["items"][0]["qty_outstanding"] == 3
 
         fin = await ac.patch(
-            f"/api/rentals/{rental_id}/return?id_telegram=2",
+            f"/api/rentals/{rental_id}/return?user_id=2",
             json={
-                "manager_tg_id": 2,
+                "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 3}],
             },
         )
@@ -128,10 +128,10 @@ async def test_return_exceeds_outstanding_400(test_db_session: AsyncSession):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         issue = await ac.post(
-            "/api/rentals/issue?id_telegram=2",
+            "/api/rentals/issue?user_id=2",
             json={
-                "user_telegram_id": 1,
-                "issue_manager_tg_id": 2,
+                "user_id": 1,
+                "issue_manager_id": 2,
                 "due_date": "15.06.2026",
                 "event": "Hike",
                 "items": [{"gear_id": g.id, "qty": 2}],
@@ -140,9 +140,9 @@ async def test_return_exceeds_outstanding_400(test_db_session: AsyncSession):
         rental_id = issue.json()["id"]
 
         bad = await ac.patch(
-            f"/api/rentals/{rental_id}/return?id_telegram=2",
+            f"/api/rentals/{rental_id}/return?user_id=2",
             json={
-                "manager_tg_id": 2,
+                "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 5}],
             },
         )
@@ -160,10 +160,10 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         overdue_resp = await ac.post(
-            "/api/rentals/issue?id_telegram=2",
+            "/api/rentals/issue?user_id=2",
             json={
-                "user_telegram_id": 1,
-                "issue_manager_tg_id": 2,
+                "user_id": 1,
+                "issue_manager_id": 2,
                 "due_date": old_due,
                 "event": "Overdue trip",
                 "items": [{"gear_id": g.id, "qty": 1}],
@@ -173,10 +173,10 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
         overdue_id = overdue_resp.json()["id"]
 
         in_time_resp = await ac.post(
-            "/api/rentals/issue?id_telegram=2",
+            "/api/rentals/issue?user_id=2",
             json={
-                "user_telegram_id": 1,
-                "issue_manager_tg_id": 2,
+                "user_id": 1,
+                "issue_manager_id": 2,
                 "due_date": future_due,
                 "event": "Future trip",
                 "items": [{"gear_id": g.id, "qty": 1}],
@@ -184,7 +184,7 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
         )
         assert in_time_resp.status_code == 200
 
-        debtors_resp = await ac.get("/api/rentals/debtors?id_telegram=2")
+        debtors_resp = await ac.get("/api/rentals/debtors?user_id=2")
         assert debtors_resp.status_code == 200
         debtors = debtors_resp.json()["rentals"]
         assert len(debtors) == 1

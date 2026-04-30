@@ -21,7 +21,7 @@ def upgrade() -> None:
         "rental_requests",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column(
-            "user_telegram_id", sa.BigInteger(), nullable=False
+            "user_id", sa.BigInteger(), nullable=False
         ),
         sa.Column("status", sa.String(length=20), nullable=False, server_default="pending"),
         sa.Column(
@@ -34,14 +34,14 @@ def upgrade() -> None:
         sa.Column("comment", sa.String(length=300), nullable=True),
         sa.Column("deposit_document", sa.String(length=300), nullable=True),
         sa.Column(
-            "decision_manager_tg_id", sa.BigInteger(), nullable=True
+            "decision_manager_id", sa.BigInteger(), nullable=True
         ),
         sa.Column("decision_comment", sa.String(length=300), nullable=True),
         sa.ForeignKeyConstraint(
-            ["user_telegram_id"], ["users.id_telegram"]
+            ["user_id"], ["users.id_telegram"]
         ),
         sa.ForeignKeyConstraint(
-            ["decision_manager_tg_id"], ["users.id_telegram"]
+            ["decision_manager_id"], ["users.id_telegram"]
         ),
         sa.PrimaryKeyConstraint("id"),
     )

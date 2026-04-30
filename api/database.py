@@ -57,8 +57,8 @@ class Rental(Base):
     __tablename__ = "rentals"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_telegram_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
-    issue_manager_tg_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+    issue_manager_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
     issue_date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=False)
     event = Column(String(300), nullable=False)
@@ -142,7 +142,7 @@ class RentalRequest(Base):
     __tablename__ = "rental_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_telegram_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
 
     # pending/approved/rejected
     status = Column(String(20), nullable=False, default="pending")
@@ -155,7 +155,7 @@ class RentalRequest(Base):
     deposit_document = Column(String(300), nullable=True)
 
     # Поля решения менеджера (для выборок и отображения)
-    decision_manager_tg_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=True)
+    decision_manager_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=True)
     decision_comment = Column(String(300), nullable=True)
 
 

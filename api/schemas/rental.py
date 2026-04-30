@@ -25,8 +25,8 @@ class RentalIssueItem(BaseModel):
 class RentalIssueCreate(BaseModel):
     """Ручная выдача: документ и позиции."""
 
-    user_telegram_id: int = Field(..., json_schema_extra={"example": 12345})
-    issue_manager_tg_id: int = Field(..., json_schema_extra={"example": 98765})
+    user_id: int = Field(..., json_schema_extra={"example": 12345})
+    issue_manager_id: int = Field(..., json_schema_extra={"example": 98765})
     due_date: date = Field(..., json_schema_extra={"example": "20.06.2024"})
     event: str = Field(..., max_length=300, json_schema_extra={"example": "Поход"})
     comment: Optional[str] = Field(None, max_length=300)
@@ -53,7 +53,7 @@ class RentalReturnBody(BaseModel):
     """Возврат по одной или нескольким позициям аренды."""
 
     items: list[RentalReturnItem] = Field(..., min_length=1)
-    manager_tg_id: int
+    manager_id: int
     comment: Optional[str] = Field(None, max_length=300)
     fee_status_snapshot: Optional[str] = Field(None, max_length=20)
 
@@ -75,8 +75,8 @@ class RentalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    user_telegram_id: int
-    issue_manager_tg_id: int
+    user_id: int
+    issue_manager_id: int
     issue_date: date
     due_date: date
     event: str
@@ -105,7 +105,7 @@ class RentalsList(BaseModel):
 class RentalUpdate(BaseModel):
     """Редактирование только полей шапки (без состава)."""
 
-    user_telegram_id: int | None = Field(None, json_schema_extra={"example": 12345})
+    user_id: int | None = Field(None, json_schema_extra={"example": 12345})
     due_date: date | None = Field(None, json_schema_extra={"example": "31.12.2024"})
     event: str | None = Field(None, max_length=300)
     comment: str | None = Field(None, max_length=300)

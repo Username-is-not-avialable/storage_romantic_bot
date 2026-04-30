@@ -43,7 +43,7 @@ async def _rental_request_to_response(
 
     return RentalRequestResponse(
         id=rental_request.id,
-        user_telegram_id=rental_request.user_telegram_id,
+        user_id=rental_request.user_id,
         created_at=rental_request.created_at,
         due_date=rental_request.due_date,
         event=rental_request.event,
@@ -72,7 +72,7 @@ async def create_rental_request_endpoint(
     try:
         rental_request = await create_rental_request(
             session=db,
-            user_telegram_id=current_user.id_telegram,
+            user_id=current_user.id_telegram,
             due_date=body.due_date,
             event=body.event,
             comment=body.comment,
@@ -100,7 +100,7 @@ async def update_rental_request_endpoint(
     rental_request = await get_rental_request_by_id(rental_request_id, db)
     if rental_request is None:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if rental_request.user_telegram_id != current_user.id_telegram:
+    if rental_request.user_id != current_user.id_telegram:
         raise HTTPException(status_code=403, detail="Forbidden")
     if rental_request.status != "pending":
         raise HTTPException(
@@ -138,7 +138,7 @@ async def list_manager_rental_requests_endpoint(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: User = Depends(require_manager_or_admin()),
     status: Literal["pending", "approved", "rejected"] | None = None,
-    user_id: int | None = None,
+    target_user_id: int | None = None,
     due_date_from: date | None = None,
     due_date_to: date | None = None,
     created_from: date | None = None,
@@ -149,7 +149,7 @@ async def list_manager_rental_requests_endpoint(
 
     q = build_manager_rental_requests_query(
         status=status,
-        user_id=user_id,
+        user_id=target_user_id,
         due_date_from=due_date_from,
         due_date_to=due_date_to,
         created_from=created_from,

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 UserRole = Literal["member", "manager", "admin"]
 
@@ -14,6 +14,8 @@ class UserCreate(UserBase):
     role: UserRole = "member"
 
 class UserResponse(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
     phone: str
     document: str | None
     role: UserRole

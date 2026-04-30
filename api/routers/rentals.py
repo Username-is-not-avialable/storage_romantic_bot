@@ -44,8 +44,8 @@ async def _build_rental_response(db: AsyncSession, rental: Rental) -> RentalResp
         )
     return RentalResponse(
         id=rental.id,
-        user_telegram_id=rental.user_telegram_id,
-        issue_manager_tg_id=rental.issue_manager_tg_id,
+        user_id=rental.user_id,
+        issue_manager_id=rental.issue_manager_id,
         issue_date=rental.issue_date,
         due_date=rental.due_date,
         event=rental.event,
@@ -64,18 +64,18 @@ async def issue_rental_endpoint(
 ):
     """Ручная выдача снаряжения (документ + позиции)."""
     lines = [(it.gear_id, it.qty) for it in body.items]
-    for tg_id in [body.user_telegram_id, body.issue_manager_tg_id]:
+    for user_id in [body.user_id, body.issue_manager_id]:
         user_exists = await db.execute(
-            select(User.id_telegram).where(User.id_telegram == tg_id).limit(1)
+            select(User.id_telegram).where(User.id_telegram == user_id).limit(1)
         )
         if user_exists.scalar_one_or_none() is None:
-            raise HTTPException(status_code=404, detail=f"Пользователь с ID {tg_id} не найден")
+            raise HTTPException(status_code=404, detail=f"Пользователь с ID {user_id} не найден")
 
     try:
         rental = await issue_rental(
             session=db,
-            user_telegram_id=body.user_telegram_id,
-            issue_manager_tg_id=body.issue_manager_tg_id,
+            user_id=body.user_id,
+            issue_manager_id=body.issue_manager_id,
             due_date=body.due_date,
             event=body.event,
             comment=body.comment,
@@ -106,7 +106,7 @@ async def get_active_rentals(
         .where(Rental.status == "active")
     )
     if user_id is not None:
-        q = q.where(Rental.user_telegram_id == user_id)
+        q = q.where(Rental.user_id == user_id)
 
     result = await db.execute(q)
     rentals = result.scalars().unique().all()
@@ -138,22 +138,22 @@ async def get_debtors(
     return RentalsList(rentals=out)
 
 
-@router.get("/history/{user_telegram_id}", response_model=RentalsList)
+@router.get("/history/{user_id}", response_model=RentalsList)
 async def get_member_rental_history(
-    user_telegram_id: int,
+    user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: User = Depends(get_current_user),
 ):
     """
-    История участника: только объекты Rental, связанные с user_telegram_id.
+    История участника: только объекты Rental, связанные с user_id.
     """
-    if current_user.role not in {"manager", "admin"} and current_user.id_telegram != user_telegram_id:
+    if current_user.role not in {"manager", "admin"} and current_user.id_telegram != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     q = (
         select(Rental)
         .options(selectinload(Rental.items))
-        .where(Rental.user_telegram_id == user_telegram_id)
+        .where(Rental.user_id == user_id)
         .order_by(Rental.id.desc())
     )
     result = await db.execute(q)
@@ -173,7 +173,7 @@ async def return_rental_endpoint(
 ):
     lines = [(it.gear_id, it.quantity) for it in body.items]
     manager_exists = await db.execute(
-        select(User.id_telegram).where(User.id_telegram == body.manager_tg_id).limit(1)
+        select(User.id_telegram).where(User.id_telegram == body.manager_id).limit(1)
     )
     if manager_exists.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Менеджер не найден")
@@ -182,7 +182,7 @@ async def return_rental_endpoint(
         rental = await return_rental(
             session=db,
             rental_id=rental_id,
-            manager_id=body.manager_tg_id,
+            manager_id=body.manager_id,
             lines=lines,
             fee_status_snapshot=body.fee_status_snapshot,
             comment=body.comment,

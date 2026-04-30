@@ -38,7 +38,7 @@ def build_manager_rental_requests_query(
     if status:
         q = q.where(RentalRequest.status == status)
     if user_id is not None:
-        q = q.where(RentalRequest.user_telegram_id == user_id)
+        q = q.where(RentalRequest.user_id == user_id)
     if due_date_from is not None:
         q = q.where(RentalRequest.due_date >= due_date_from)
     if due_date_to is not None:
@@ -57,7 +57,7 @@ def build_manager_rental_requests_query(
 async def create_rental_request(
     *,
     session: AsyncSession,
-    user_telegram_id: int,
+    user_id: int,
     due_date,
     event: str,
     comment: str | None,
@@ -82,7 +82,7 @@ async def create_rental_request(
         raise ValueError("Снаряжение не найдено")
 
     rental_request = RentalRequest(
-        user_telegram_id=user_telegram_id,
+        user_id=user_id,
         due_date=due_date,
         event=event,
         comment=comment,
@@ -165,8 +165,8 @@ async def approve_rental_request(
 
     rental = await issue_rental(
         session=session,
-        user_telegram_id=rental_request.user_telegram_id,
-        issue_manager_tg_id=manager_id,
+        user_id=rental_request.user_id,
+        issue_manager_id=manager_id,
         due_date=rental_request.due_date,
         event=rental_request.event,
         comment=rental_request.comment,
@@ -175,7 +175,7 @@ async def approve_rental_request(
     )
 
     rental_request.status = "approved"
-    rental_request.decision_manager_tg_id = manager_id
+    rental_request.decision_manager_id = manager_id
     rental_request.decision_comment = manager_comment
 
     return rental
@@ -189,5 +189,5 @@ async def reject_rental_request(
     manager_comment: str | None,
 ) -> None:
     rental_request.status = "rejected"
-    rental_request.decision_manager_tg_id = manager_id
+    rental_request.decision_manager_id = manager_id
     rental_request.decision_comment = manager_comment

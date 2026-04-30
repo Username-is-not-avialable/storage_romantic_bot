@@ -24,7 +24,7 @@ async def test_member_cannot_create_gear(test_db_session: AsyncSession):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post(
-            "/api/gear/?id_telegram=1",
+            "/api/gear/?user_id=1",
             json={
                 "name": "Tent",
                 "total_quantity": 5,
@@ -42,7 +42,7 @@ async def test_manager_can_create_gear(test_db_session: AsyncSession):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post(
-            "/api/gear/?id_telegram=2",
+            "/api/gear/?user_id=2",
             json={
                 "name": "Tent2",
                 "total_quantity": 5,
@@ -54,22 +54,32 @@ async def test_manager_can_create_gear(test_db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_member_cannot_search_users(test_db_session: AsyncSession):
+async def test_member_cannot_list_admin_users(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.post("/api/users/search/?id_telegram=1", json={})
+        resp = await ac.get("/api/admin/users?user_id=1")
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_manager_can_search_users(test_db_session: AsyncSession):
+async def test_manager_cannot_list_admin_users(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.post("/api/users/search/?id_telegram=2", json={})
+        resp = await ac.get("/api/admin/users?user_id=2")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_can_list_admin_users(test_db_session: AsyncSession):
+    await _seed_users(test_db_session)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/api/admin/users?user_id=3")
     assert resp.status_code == 200
     data = resp.json()
     assert "users" in data
