@@ -22,7 +22,7 @@ async def list_users(
     q = select(User)
     if name is not None and name.strip():
         q = q.where(User.full_name.ilike(f"%{name.strip()}%"))
-    q = q.order_by(User.id_telegram.asc())
+    q = q.order_by(User.id.asc())
 
     result = await db.execute(q)
     users = result.scalars().all()

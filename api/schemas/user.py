@@ -5,20 +5,24 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 UserRole = Literal["member", "manager", "admin"]
 
 class UserBase(BaseModel):
-    id_telegram: int
+    email: str
     full_name: str
 
 class UserCreate(UserBase):
+    password: str = Field(..., min_length=8, max_length=128)
     phone: str
     document: str | None = None
     role: UserRole = "member"
+    is_active: bool = True
 
 class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     phone: str
     document: str | None
     role: UserRole
+    is_active: bool
 
 class UserSearch(BaseModel):
     name: str | None = None

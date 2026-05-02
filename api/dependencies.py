@@ -1,22 +1,27 @@
 from typing import Callable
 
-from fastapi import Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, User, get_db
 from api.services.gear import get_gear_by_id
+from api.services.auth import resolve_user_by_session_token
 from api.services.rentals import get_rental_by_id
-from api.services.user import get_user_by_id
+
+
+def get_session_token(auth_session: str | None = Cookie(default=None)) -> str | None:
+    return auth_session
+
 
 async def get_current_user(
-    user_id: int,
-    db: AsyncSession = Depends(get_db)
+    session_token: str | None = Depends(get_session_token),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    user = await get_user_by_id(user_id, db)
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = await resolve_user_by_session_token(db, session_token)
     if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=401, detail="Invalid session")
     return user
 
 

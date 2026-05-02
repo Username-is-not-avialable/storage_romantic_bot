@@ -51,7 +51,8 @@
 
 ## 5. Модель данных (MVP + next)
 ### 5.1 Сущности MVP (частично уже есть)
-- `User`: id_telegram, full_name, phone, document, role flags.
+- `User`: внутренний `id`, `email`, `password_hash`, `email_verified_at`, `is_active`, `full_name`, `phone`, `document`, `role`.
+- `UserMessengerLink`: связь пользователя с внешними мессенджер-идентификаторами (`provider`, `external_user_id`).
 - `Gear`: name, description, total_quantity, available_count.
 
 ### 5.2 Аренда и возвраты (целевой дизайн: 4 таблицы)
@@ -65,8 +66,8 @@
 #### 5.2.1 `rentals` (шапка аренды)
 - Назначение: общие поля аренды, единая точка ссылок для событий/отчетов.
 - Поля (минимум):
-  - user_id (tg id)
-  - issue_manager_id (tg id)
+  - user_id (internal user id)
+  - issue_manager_id (internal user id)
   - issue_date
   - due_date
   - event (название мероприятия)
@@ -93,7 +94,7 @@
   - rental_id (FK -> rentals.id)
   - type (enum)
   - created_at (timestamp события)
-  - manager_id (tg id менеджера, оформившего событие)
+  - manager_id (internal user id менеджера, оформившего событие)
   - comment (nullable)
 - fee_status_snapshot (nullable): снапшот статуса активности членского взноса, доступного на момент создания события (например: `active`, `inactive`, `unknown`, `missing`); используется для аудита и объяснения решений даже при задержках синхронизации из Excel.
 - Принцип: события не редактируются “задним числом” (append-only). Исправления делаются отдельным событием (опционально `CORRECTION`) с указанием причины.
@@ -144,9 +145,12 @@
 - Сохранение сессии (web): серверная сессия в `httpOnly` cookie.
 - Вход в мессенджер-боты (VK/мессенджеры): инициируется по ссылке на страницу аутентификации на сайте; после входа выполняется обратный редирект/возврат в бота.
 - Сохранение сессии в ботах: персистентная привязка аккаунта (без повторного ввода пароля пользователем; навсегда).
-- Email для регистрации/сброса пароля: отправка кодов подтверждения через транзакционного email-провайдера (SMTP/API).
+- Email для регистрации/сброса пароля: отправка кодов подтверждения через Gmail API (OAuth, MVP-вариант).
 - `POST /api/auth/login` (web)
-- `GET /api/me`
+- `POST /api/auth/logout`
+- `POST /api/auth/request-code`
+- `POST /api/auth/verify-code`
+- `GET /api/auth/me`
 
 ### 7.2 Каталог и доступность
 - `GET /api/gear?query=&page=&limit=`
@@ -180,7 +184,7 @@
 - Лог ошибок разбора строк, метрика успешной синхронизации.
 
 ### 8.3 Идентификация пользователя
-- Предпочтительно: Telegram ID как ключ сопоставления.
+- Предпочтительно: сопоставление по `user_messenger_links` (`provider=telegram`, `external_user_id`).
 - Запасной вариант: телефон + full_name (с ручной верификацией).
 
 ## 9. Уведомления
@@ -210,7 +214,10 @@
 ## 11. Текущее состояние реализации (по коду)
 - Есть каркас FastAPI, сущности `User`, `Gear`, `Rental`.
 - Есть базовые роуты для пользователей, снаряжения и аренд.
-- Нет полноценных ролей `admin/member/manager` (только `is_manager`).
+- Реализованы роли `admin/member/manager` и RBAC-проверки на защищенных эндпоинтах.
+- Реализована web-аутентификация (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`) через cookie-сессию.
+- Добавлены auth email-code endpoints (`/api/auth/request-code`, `/api/auth/verify-code`) и отправка через Gmail API (OAuth, MVP).
+- Идентификация пользователей переведена на внутренний `users.id`; `id_telegram` перенесен в связки `user_messenger_links`.
 - Нет отдельного слоя бронирований (bookings), продлений и задолженностей как отдельной модели.
 - Нет интеграции Excel-взносов, Telegram/VK адаптеров и планировщика уведомлений.
 

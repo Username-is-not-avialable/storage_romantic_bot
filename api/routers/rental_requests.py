@@ -72,7 +72,7 @@ async def create_rental_request_endpoint(
     try:
         rental_request = await create_rental_request(
             session=db,
-            user_id=current_user.id_telegram,
+            user_id=current_user.id,
             due_date=body.due_date,
             event=body.event,
             comment=body.comment,
@@ -100,7 +100,7 @@ async def update_rental_request_endpoint(
     rental_request = await get_rental_request_by_id(rental_request_id, db)
     if rental_request is None:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if rental_request.user_id != current_user.id_telegram:
+    if rental_request.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     if rental_request.status != "pending":
         raise HTTPException(
@@ -186,14 +186,14 @@ async def decide_rental_request_endpoint(
             await approve_rental_request(
                 session=db,
                 rental_request=rental_request,
-                manager_id=manager.id_telegram,
+                manager_id=manager.id,
                 manager_comment=decision.comment,
             )
         elif decision.decision == "reject":
             await reject_rental_request(
                 session=db,
                 rental_request=rental_request,
-                manager_id=manager.id_telegram,
+                manager_id=manager.id,
                 manager_comment=decision.comment,
             )
         else:

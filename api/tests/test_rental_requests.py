@@ -6,14 +6,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Gear, Rental, RentalEvent, RentalItem, RentalRequest
 from api.main import app
 from api.database import User
+from api.services.auth import hash_password
 
 
 async def _seed_users(session: AsyncSession) -> None:
     session.add_all(
         [
-            User(id_telegram=1, full_name="Member", phone="+100", role="member"),
-            User(id_telegram=2, full_name="Manager", phone="+200", role="manager"),
-            User(id_telegram=3, full_name="Admin", phone="+300", role="admin"),
+            User(
+                email="member@example.com",
+                password_hash=hash_password("memberpass"),
+                full_name="Member",
+                phone="+100",
+                role="member",
+            ),
+            User(
+                email="manager@example.com",
+                password_hash=hash_password("managerpass"),
+                full_name="Manager",
+                phone="+200",
+                role="manager",
+            ),
+            User(
+                email="admin@example.com",
+                password_hash=hash_password("adminpass"),
+                full_name="Admin",
+                phone="+300",
+                role="admin",
+            ),
         ]
     )
     await session.commit()
@@ -39,8 +58,10 @@ async def test_pending_update_then_reject(test_db_session: AsyncSession):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        member_login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert member_login.status_code == 200
         create_resp = await ac.post(
-            "/api/rental-requests/?user_id=1",
+            "/api/rental-requests/",
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
@@ -55,7 +76,7 @@ async def test_pending_update_then_reject(test_db_session: AsyncSession):
         request_id = data["id"]
 
         update_resp = await ac.patch(
-            f"/api/rental-requests/{request_id}?user_id=1",
+            f"/api/rental-requests/{request_id}",
             json={
                 "comment": "c2",
                 "items": [{"gear_id": gear.id, "qty_requested": 3}],
@@ -65,8 +86,10 @@ async def test_pending_update_then_reject(test_db_session: AsyncSession):
         updated = update_resp.json()
         assert updated["status"] == "pending"
 
+        manager_login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert manager_login.status_code == 200
         reject_resp = await ac.patch(
-            f"/api/manager/rental-requests/{request_id}?user_id=2",
+            f"/api/manager/rental-requests/{request_id}",
             json={"decision": "reject", "comment": "nope"},
         )
         assert reject_resp.status_code == 200
@@ -89,8 +112,10 @@ async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        member_login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert member_login.status_code == 200
         create_resp = await ac.post(
-            "/api/rental-requests/?user_id=1",
+            "/api/rental-requests/",
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
@@ -102,8 +127,10 @@ async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
         assert create_resp.status_code == 200
         request_id = create_resp.json()["id"]
 
+        manager_login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert manager_login.status_code == 200
         approve_resp = await ac.patch(
-            f"/api/manager/rental-requests/{request_id}?user_id=2",
+            f"/api/manager/rental-requests/{request_id}",
             json={"decision": "approve", "comment": "ok"},
         )
         assert approve_resp.status_code == 200
@@ -156,8 +183,10 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        member_login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert member_login.status_code == 200
         create_resp = await ac.post(
-            "/api/rental-requests/?user_id=1",
+            "/api/rental-requests/",
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
@@ -167,8 +196,10 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
         assert create_resp.status_code == 200
         request_id = create_resp.json()["id"]
 
+        manager_login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert manager_login.status_code == 200
         approve_resp = await ac.patch(
-            f"/api/manager/rental-requests/{request_id}?user_id=2",
+            f"/api/manager/rental-requests/{request_id}",
             json={"decision": "approve", "comment": "ok"},
         )
         assert approve_resp.status_code == 400
@@ -195,8 +226,10 @@ async def test_manager_queue_supports_filters(
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        member_login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert member_login.status_code == 200
         first_resp = await ac.post(
-            "/api/rental-requests/?user_id=1",
+            "/api/rental-requests/",
             json={
                 "due_date": "10.04.2026",
                 "event": "Later trip",
@@ -207,7 +240,7 @@ async def test_manager_queue_supports_filters(
         first_id = first_resp.json()["id"]
 
         second_resp = await ac.post(
-            "/api/rental-requests/?user_id=1",
+            "/api/rental-requests/",
             json={
                 "due_date": "03.04.2026",
                 "event": "Urgent trip",
@@ -217,14 +250,16 @@ async def test_manager_queue_supports_filters(
         assert second_resp.status_code == 200
         second_id = second_resp.json()["id"]
 
+        manager_login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert manager_login.status_code == 200
         reject_resp = await ac.patch(
-            f"/api/manager/rental-requests/{first_id}?user_id=2",
+            f"/api/manager/rental-requests/{first_id}",
             json={"decision": "reject", "comment": "declined"},
         )
         assert reject_resp.status_code == 200
 
         queue_resp = await ac.get(
-            "/api/manager/rental-requests/?user_id=2"
+            "/api/manager/rental-requests/?"
             "&status=pending&sort_order=asc"
         )
         assert queue_resp.status_code == 200
@@ -239,5 +274,7 @@ async def test_manager_queue_forbidden_for_member(test_db_session: AsyncSession)
     await _seed_users(test_db_session)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.get("/api/manager/rental-requests/?user_id=1")
+        login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert login.status_code == 200
+        resp = await ac.get("/api/manager/rental-requests/")
         assert resp.status_code == 403

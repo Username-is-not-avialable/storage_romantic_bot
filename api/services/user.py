@@ -8,6 +8,6 @@ async def get_user_by_id(
 ) -> User | None:
     """Получение пользователя по внутреннему идентификатору."""
     result = await session.execute(
-        select(User).where(User.id_telegram == user_id)
+        select(User).where(User.id == user_id)
     )
     return result.scalars().first()

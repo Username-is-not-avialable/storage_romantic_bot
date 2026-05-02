@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -34,11 +34,62 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
 
-    id_telegram = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
     full_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
     document = Column(String(100), nullable=True)
     role = Column(String(20), nullable=False, default="member")
+
+
+class UserMessengerLink(Base):
+    __tablename__ = "user_messenger_links"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    provider = Column(String(20), nullable=False)
+    external_user_id = Column(String(255), nullable=False)
+    linked_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+    is_primary = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        CheckConstraint("provider IN ('telegram', 'vk')", name="ck_user_messenger_links_provider"),
+        UniqueConstraint("provider", "external_user_id", name="uq_user_messenger_links_provider_external"),
+    )
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_token_hash = Column(String(128), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+
+
+class AuthEmailCode(Base):
+    __tablename__ = "auth_email_codes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    email = Column(String(255), nullable=False)
+    purpose = Column(String(30), nullable=False)
+    code_hash = Column(String(128), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('email_verify', 'password_reset')",
+            name="ck_auth_email_codes_purpose",
+        ),
+    )
 
 
 class Gear(Base):
@@ -57,8 +108,8 @@ class Rental(Base):
     __tablename__ = "rentals"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
-    issue_manager_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    issue_manager_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     issue_date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=False)
     event = Column(String(300), nullable=False)
@@ -100,7 +151,7 @@ class RentalEvent(Base):
     rental_id = Column(Integer, ForeignKey("rentals.id", ondelete="CASCADE"), nullable=False)
     type = Column(String(30), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
-    manager_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=True)
+    manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     comment = Column(String(300), nullable=True)
     fee_status_snapshot = Column(String(20), nullable=True)
 
@@ -142,7 +193,7 @@ class RentalRequest(Base):
     __tablename__ = "rental_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # pending/approved/rejected
     status = Column(String(20), nullable=False, default="pending")
@@ -155,7 +206,7 @@ class RentalRequest(Base):
     deposit_document = Column(String(300), nullable=True)
 
     # Поля решения менеджера (для выборок и отображения)
-    decision_manager_id = Column(BigInteger, ForeignKey("users.id_telegram"), nullable=True)
+    decision_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     decision_comment = Column(String(300), nullable=True)
 
 

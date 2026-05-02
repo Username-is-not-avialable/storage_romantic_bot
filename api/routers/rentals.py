@@ -66,7 +66,7 @@ async def issue_rental_endpoint(
     lines = [(it.gear_id, it.qty) for it in body.items]
     for user_id in [body.user_id, body.issue_manager_id]:
         user_exists = await db.execute(
-            select(User.id_telegram).where(User.id_telegram == user_id).limit(1)
+            select(User.id).where(User.id == user_id).limit(1)
         )
         if user_exists.scalar_one_or_none() is None:
             raise HTTPException(status_code=404, detail=f"Пользователь с ID {user_id} не найден")
@@ -97,6 +97,7 @@ async def issue_rental_endpoint(
 async def get_active_rentals(
     db: Annotated[AsyncSession, Depends(get_db)],
     user_id: int | None = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Список активных аренд (status=active)."""
     # TODO: вынести формирование sql запроса из роутера в сервис или репозиторий
@@ -105,8 +106,11 @@ async def get_active_rentals(
         .options(selectinload(Rental.items))
         .where(Rental.status == "active")
     )
-    if user_id is not None:
-        q = q.where(Rental.user_id == user_id)
+    if current_user.role in {"manager", "admin"}:
+        if user_id is not None:
+            q = q.where(Rental.user_id == user_id)
+    else:
+        q = q.where(Rental.user_id == current_user.id)
 
     result = await db.execute(q)
     rentals = result.scalars().unique().all()
@@ -147,7 +151,7 @@ async def get_member_rental_history(
     """
     История участника: только объекты Rental, связанные с user_id.
     """
-    if current_user.role not in {"manager", "admin"} and current_user.id_telegram != user_id:
+    if current_user.role not in {"manager", "admin"} and current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     q = (
@@ -173,7 +177,7 @@ async def return_rental_endpoint(
 ):
     lines = [(it.gear_id, it.quantity) for it in body.items]
     manager_exists = await db.execute(
-        select(User.id_telegram).where(User.id_telegram == body.manager_id).limit(1)
+        select(User.id).where(User.id == body.manager_id).limit(1)
     )
     if manager_exists.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Менеджер не найден")
@@ -220,8 +224,11 @@ async def update_rental(
 async def get_rental(
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: User = Depends(get_current_user),
 ):
     rental = await get_rental_by_id(rental_id, db)
     if rental is None:
         raise HTTPException(status_code=404, detail="Аренда не найдена")
+    if current_user.role not in {"manager", "admin"} and rental.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return await _build_rental_response(db, rental)

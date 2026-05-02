@@ -6,13 +6,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import Gear, Rental, RentalEvent, RentalItem, User
 from api.main import app
+from api.services.auth import hash_password
 
 
 async def _seed_users(session: AsyncSession) -> None:
     session.add_all(
         [
-            User(id_telegram=1, full_name="Member", phone="+100", role="member"),
-            User(id_telegram=2, full_name="Manager", phone="+200", role="manager"),
+            User(
+                email="member@example.com",
+                password_hash=hash_password("memberpass"),
+                full_name="Member",
+                phone="+100",
+                role="member",
+            ),
+            User(
+                email="manager@example.com",
+                password_hash=hash_password("managerpass"),
+                full_name="Manager",
+                phone="+200",
+                role="manager",
+            ),
         ]
     )
     await session.commit()
@@ -39,8 +52,10 @@ async def test_issue_two_gear_positions(test_db_session: AsyncSession):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert login.status_code == 200
         resp = await ac.post(
-            "/api/rentals/issue?user_id=2",
+            "/api/rentals/issue",
             json={
                 "user_id": 1,
                 "issue_manager_id": 2,
@@ -72,8 +87,10 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert login.status_code == 200
         issue = await ac.post(
-            "/api/rentals/issue?user_id=2",
+            "/api/rentals/issue",
             json={
                 "user_id": 1,
                 "issue_manager_id": 2,
@@ -86,7 +103,7 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
         rental_id = issue.json()["id"]
 
         part = await ac.patch(
-            f"/api/rentals/{rental_id}/return?user_id=2",
+            f"/api/rentals/{rental_id}/return",
             json={
                 "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 1}],
@@ -97,7 +114,7 @@ async def test_partial_then_final_return(test_db_session: AsyncSession):
         assert part.json()["items"][0]["qty_outstanding"] == 3
 
         fin = await ac.patch(
-            f"/api/rentals/{rental_id}/return?user_id=2",
+            f"/api/rentals/{rental_id}/return",
             json={
                 "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 3}],
@@ -127,8 +144,10 @@ async def test_return_exceeds_outstanding_400(test_db_session: AsyncSession):
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert login.status_code == 200
         issue = await ac.post(
-            "/api/rentals/issue?user_id=2",
+            "/api/rentals/issue",
             json={
                 "user_id": 1,
                 "issue_manager_id": 2,
@@ -140,7 +159,7 @@ async def test_return_exceeds_outstanding_400(test_db_session: AsyncSession):
         rental_id = issue.json()["id"]
 
         bad = await ac.patch(
-            f"/api/rentals/{rental_id}/return?user_id=2",
+            f"/api/rentals/{rental_id}/return",
             json={
                 "manager_id": 2,
                 "items": [{"gear_id": g.id, "quantity": 5}],
@@ -159,8 +178,10 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        assert login.status_code == 200
         overdue_resp = await ac.post(
-            "/api/rentals/issue?user_id=2",
+            "/api/rentals/issue",
             json={
                 "user_id": 1,
                 "issue_manager_id": 2,
@@ -173,7 +194,7 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
         overdue_id = overdue_resp.json()["id"]
 
         in_time_resp = await ac.post(
-            "/api/rentals/issue?user_id=2",
+            "/api/rentals/issue",
             json={
                 "user_id": 1,
                 "issue_manager_id": 2,
@@ -184,7 +205,7 @@ async def test_get_debtors_returns_only_overdue_active_rentals(test_db_session: 
         )
         assert in_time_resp.status_code == 200
 
-        debtors_resp = await ac.get("/api/rentals/debtors?user_id=2")
+        debtors_resp = await ac.get("/api/rentals/debtors")
         assert debtors_resp.status_code == 200
         debtors = debtors_resp.json()["rentals"]
         assert len(debtors) == 1
