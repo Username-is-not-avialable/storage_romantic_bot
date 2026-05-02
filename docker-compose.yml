@@ -41,9 +41,20 @@ services:
       - ./scripts:/app/scripts
     restart: unless-stopped
 
-  #TODO: добавить depends on: api после добавления /health в api
-  bot: 
+  bot:
     build: ./bot
+    container_name: storage_bot
+    depends_on:
+      - api
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://api:8000
+      VK_GROUP_TOKEN: ${VK_GROUP_TOKEN:-}
+      VK_GROUP_ID: ${VK_GROUP_ID:-}
+      VK_BOT_SECRET: ${VK_BOT_SECRET:-}
+    volumes:
+      - ./bot/bot:/app/bot
     restart: unless-stopped
 
 volumes:

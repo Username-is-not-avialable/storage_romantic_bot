@@ -10,6 +10,19 @@ docker compose up -d
 
 API будет доступно на `http://localhost:8100`.
 
+### VK-бот (Long Poll)
+
+Сервис `bot` в `docker-compose` подключается к API по внутренней сети. Нужны переменные в `.env` (или `environment`):
+
+| Переменная | Назначение |
+|------------|------------|
+| `VK_GROUP_TOKEN` | ключ доступа сообщества VK (управление → API → ключи) |
+| `VK_GROUP_ID` | числовой id сообщества (без минуса) для Long Poll |
+| `VK_BOT_SECRET` | общий секрет с API (тот же `VK_BOT_SECRET` у сервиса `api`) |
+| `API_BASE_URL` | для compose задан как `http://api:8000` |
+
+В сообществе VK включите входящие сообщения и Long Poll API. После `docker compose up` бот обрабатывает команды `/старт`, `/привязать <код>`, `/профиль` (см. `bot/bot/main.py`).
+
 ### Миграции БД (Alembic)
 
 ```bash

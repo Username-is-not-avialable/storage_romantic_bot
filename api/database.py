@@ -72,6 +72,17 @@ class AuthSession(Base):
     last_seen_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
 
 
+class VkLinkRequest(Base):
+    __tablename__ = "vk_link_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    code_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+
+
 class AuthEmailCode(Base):
     __tablename__ = "auth_email_codes"
 

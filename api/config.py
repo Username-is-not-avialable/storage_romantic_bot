@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev", validation_alias="APP_ENV")
     auth_session_ttl_hours: int = Field(default=24, validation_alias="AUTH_SESSION_TTL_HOURS")
     auth_code_ttl_minutes: int = Field(default=15, validation_alias="AUTH_CODE_TTL_MINUTES")
+    vk_bot_secret: str = Field(default="", validation_alias="VK_BOT_SECRET")
+    vk_link_ttl_minutes: int = Field(default=15, validation_alias="VK_LINK_TTL_MINUTES")
     gmail_token_file: str = Field(default="token.json", validation_alias="GMAIL_TOKEN_FILE")
     gmail_default_sender: str = Field(default="me", validation_alias="GMAIL_DEFAULT_SENDER")
 
@@ -70,6 +72,8 @@ class Settings(BaseSettings):
             "app_env": self.app_env,
             "auth_session_ttl_hours": self.auth_session_ttl_hours,
             "auth_code_ttl_minutes": self.auth_code_ttl_minutes,
+            "vk_link_ttl_minutes": self.vk_link_ttl_minutes,
+            "vk_bot_secret_configured": bool(self.vk_bot_secret),
             "db_host": self.db_host,
             "db_port": self.db_port,
             "db_user": self.db_user,

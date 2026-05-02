@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+os.environ.setdefault("VK_BOT_SECRET", "test-vk-bot-secret")
+
+from api.config import get_settings
 from api.database import Base, get_db, User
 from api.main import app
 
@@ -29,6 +33,12 @@ async def test_db_session():
         yield session
 
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def reset_settings_cache():
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)
