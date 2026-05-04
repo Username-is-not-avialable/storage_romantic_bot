@@ -1,0 +1,23 @@
+---
+description: Python и pip только через виртуальное окружение проекта
+alwaysApply: true
+---
+
+### Виртуальное окружение Python
+
+- **Не вызывай** системный `python` / `python3` для кода этого репозитория (скрипты, тесты, `uvicorn`, миграции и т.д.).
+- **Не вызывай** системный `pip` / `pip3`: пакеты ставь только в venv проекта — `.venv/bin/pip` / `venv/bin/pip` или `.venv/bin/python -m pip …`.
+- **Используй интерпретатор из venv** проекта: сначала проверь корень — `.venv/bin/python`; в этом репозитории для API и связанных скриптов часто используется **`api/.venv/bin/python`** (не вызывай голый `python`/`pip` из ОС).
+- Перед длинной сессией в терминале можно активировать: `source .venv/bin/activate` (или `source venv/bin/activate`), затем вызывать `python`, `pip`, `pytest` и т.д. — они подхватят venv.
+
+```bash
+# пример без активации (корневой venv)
+.venv/bin/python -m pytest
+
+# этот репозиторий: API и pytest из каталога api/
+api/.venv/bin/python -m pytest
+api/.venv/bin/python -m uvicorn api.main:app --reload
+api/.venv/bin/python -m pip install -r api/requirements.txt
+```
+
+Для зависимостей бота локально можно: `api/.venv/bin/python -m pip install -r bot/requirements.txt` (один venv) или отдельное `bot/.venv` — главное, **не** ставить пакеты в системный Python хоста.
