@@ -19,6 +19,8 @@ from api.schemas.rental import (
 from api.services.rentals import (
     get_rental_by_id,
     issue_rental,
+    list_active_rentals_for_user,
+    list_active_rentals_manager_scope,
     outstanding_by_gear,
     return_rental,
 )
@@ -100,20 +102,10 @@ async def get_active_rentals(
     current_user: User = Depends(get_current_user),
 ):
     """Список активных аренд (status=active)."""
-    # TODO: вынести формирование sql запроса из роутера в сервис или репозиторий
-    q = (
-        select(Rental)
-        .options(selectinload(Rental.items))
-        .where(Rental.status == "active")
-    )
     if current_user.role in {"manager", "admin"}:
-        if user_id is not None:
-            q = q.where(Rental.user_id == user_id)
+        rentals = await list_active_rentals_manager_scope(db, user_id)
     else:
-        q = q.where(Rental.user_id == current_user.id)
-
-    result = await db.execute(q)
-    rentals = result.scalars().unique().all()
+        rentals = await list_active_rentals_for_user(db, current_user.id)
     out: list[RentalResponse] = []
     for r in rentals:
         out.append(await _build_rental_response(db, r))

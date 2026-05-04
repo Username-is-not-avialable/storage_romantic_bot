@@ -1,33 +1,38 @@
 from __future__ import annotations
 
-import secrets
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.config import get_settings
 from api.database import User, get_db
-from api.dependencies import get_current_user
+from api.dependencies import (
+    VkBotManagerUser,
+    VkBotMemberUser,
+    VkBotUser,
+    get_current_user,
+    verify_vk_bot_secret_header,
+)
 from api.schemas.auth import MeResponse
+from api.schemas.rental import RentalsList
+from api.schemas.rental_request import (
+    RentalRequestCreate,
+    RentalRequestDecision,
+    RentalRequestResponse,
+    RentalRequestUpdate,
+)
 from api.schemas.vk_integration import RequestVkLinkCodeResponse, VkLinkCompleteRequest
 from api.services import vk_integration as vk_svc
+from api.services.rentals import list_active_rentals_for_user
+from api.routers.rental_request_helpers import (
+    create_rental_request_for_user_response,
+    manager_decide_rental_request_response,
+    update_pending_rental_request_for_owner_response,
+)
+from api.routers.rentals import _build_rental_response
 
 auth_vk_router = APIRouter(prefix="/api/auth/vk-link", tags=["Auth"])
 integrations_router = APIRouter(prefix="/api/integrations/vk", tags=["VK Integration"])
-
-
-def _require_vk_bot_secret(x_vk_bot_secret: str | None = Header(default=None, alias="X-VK-Bot-Secret")) -> None:
-    settings = get_settings()
-    if not settings.vk_bot_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="VK bot integration is not configured: set VK_BOT_SECRET for the API service.",
-        )
-    if not x_vk_bot_secret:
-        raise HTTPException(status_code=401, detail="Missing X-VK-Bot-Secret header")
-    expected = settings.vk_bot_secret
-    if len(x_vk_bot_secret) != len(expected) or not secrets.compare_digest(x_vk_bot_secret, expected):
-        raise HTTPException(status_code=401, detail="Invalid X-VK-Bot-Secret")
 
 
 @auth_vk_router.post("/request_code", response_model=RequestVkLinkCodeResponse)
@@ -44,7 +49,7 @@ async def request_vk_link_code(
 async def vk_link_complete(
     body: VkLinkCompleteRequest,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_vk_bot_secret),
+    _: None = Depends(verify_vk_bot_secret_header),
 ):
     user, err = await vk_svc.complete_vk_link(db, code=body.code, vk_user_id=body.vk_user_id)
     if err == "invalid_code":
@@ -60,12 +65,60 @@ async def vk_link_complete(
 
 
 @integrations_router.get("/me", response_model=MeResponse)
-async def vk_me(
-    vk_user_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(_require_vk_bot_secret),
+async def vk_me(current_user: VkBotUser):
+    return current_user
+
+
+@integrations_router.post("/rental-requests", response_model=RentalRequestResponse)
+async def vk_create_rental_request(
+    body: RentalRequestCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: VkBotMemberUser,
 ):
-    user = await vk_svc.get_user_profile_for_vk(db, vk_user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="VK account is not linked")
-    return user
+    return await create_rental_request_for_user_response(
+        db, user=current_user, body=body
+    )
+
+
+@integrations_router.patch("/rental-requests/{rental_request_id}", response_model=RentalRequestResponse)
+async def vk_update_rental_request(
+    rental_request_id: int,
+    body: RentalRequestUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: VkBotMemberUser,
+):
+    return await update_pending_rental_request_for_owner_response(
+        db,
+        rental_request_id=rental_request_id,
+        owner=current_user,
+        body=body,
+    )
+
+
+@integrations_router.get("/rentals/active", response_model=RentalsList)
+async def vk_get_active_rentals(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: VkBotUser,
+):
+    """Активные аренды только для пользователя, привязанного к переданному vk_user_id."""
+    rentals = await list_active_rentals_for_user(db, current_user.id)
+    out = [await _build_rental_response(db, r) for r in rentals]
+    return RentalsList(rentals=out)
+
+
+@integrations_router.patch(
+    "/manager/rental-requests/{rental_request_id}",
+    response_model=RentalRequestResponse,
+)
+async def vk_manager_decide_rental_request(
+    rental_request_id: int,
+    decision: RentalRequestDecision,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    manager: VkBotManagerUser,
+):
+    return await manager_decide_rental_request_response(
+        db,
+        rental_request_id=rental_request_id,
+        manager=manager,
+        decision=decision,
+    )

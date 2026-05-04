@@ -231,3 +231,29 @@ async def return_rental(
     await session.flush()
     await session.refresh(rental)
     return rental
+
+
+async def list_active_rentals_for_user(session: AsyncSession, user_id: int) -> list[Rental]:
+    """Активные аренды одного участника (для member / VK integration)."""
+    q = (
+        select(Rental)
+        .options(selectinload(Rental.items))
+        .where(Rental.status == "active", Rental.user_id == user_id)
+    )
+    result = await session.execute(q)
+    return list(result.scalars().unique().all())
+
+
+async def list_active_rentals_manager_scope(
+    session: AsyncSession, filter_user_id: int | None
+) -> list[Rental]:
+    """Активные аренды: все или по одному user_id."""
+    q = (
+        select(Rental)
+        .options(selectinload(Rental.items))
+        .where(Rental.status == "active")
+    )
+    if filter_user_id is not None:
+        q = q.where(Rental.user_id == filter_user_id)
+    result = await session.execute(q)
+    return list(result.scalars().unique().all())

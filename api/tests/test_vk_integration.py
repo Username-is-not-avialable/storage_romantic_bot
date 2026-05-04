@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
-from api.database import User
+from api.database import Gear, User, UserMessengerLink
 from api.main import app
 from api.services.auth import hash_password
 
@@ -167,3 +167,209 @@ async def test_complete_conflict_second_site_user_same_vk_id(test_db_session: As
             headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
         )
         assert r_retry_other_vk.status_code == 200
+
+
+async def _seed_member_with_vk_and_gear(
+    session: AsyncSession, *, vk_user_id: int
+) -> tuple[User, Gear]:
+    """Участник `member` с привязкой VK и одной позицией снаряжения для заявок."""
+    user = User(
+        email="vk_member_req@example.com",
+        password_hash=hash_password("m"),
+        full_name="VK Member",
+        phone="+1999",
+        role="member",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    session.add(
+        UserMessengerLink(
+            user_id=user.id,
+            provider="vk",
+            external_user_id=str(vk_user_id),
+        )
+    )
+    gear = Gear(
+        name="VkRentalGear",
+        total_quantity=10,
+        available_count=10,
+        description="t",
+    )
+    session.add(gear)
+    await session.commit()
+    await session.refresh(gear)
+    return user, gear
+
+
+async def _seed_manager_with_vk(session: AsyncSession, *, vk_user_id: int) -> User:
+    mgr = User(
+        email="vk_mgr@example.com",
+        password_hash=hash_password("mgr"),
+        full_name="VK Manager",
+        phone="+2999",
+        role="manager",
+    )
+    session.add(mgr)
+    await session.commit()
+    await session.refresh(mgr)
+    session.add(
+        UserMessengerLink(
+            user_id=mgr.id,
+            provider="vk",
+            external_user_id=str(vk_user_id),
+        )
+    )
+    await session.commit()
+    return mgr
+
+
+@pytest.mark.asyncio
+async def test_vk_create_rental_request_success(test_db_session):
+    vk_id = 600_001
+    _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_id)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": vk_id},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "due_date": "02.04.2026",
+                "event": "TripVK",
+                "comment": "via bot",
+                "deposit_document": "d.pdf",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "pending"
+        assert data["event"] == "TripVK"
+        assert len(data["items"]) == 1
+        assert data["items"][0]["gear_id"] == gear.id
+
+
+@pytest.mark.asyncio
+async def test_vk_integration_requires_secret_on_new_routes(test_db_session):
+    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_002)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r_no = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": 600_002},
+            json={
+                "due_date": "02.04.2026",
+                "event": "x",
+                "items": [{"gear_id": 1, "qty_requested": 1}],
+            },
+        )
+        assert r_no.status_code == 401
+
+        r_bad = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": 600_002},
+            headers={"X-VK-Bot-Secret": "not-the-secret"},
+            json={
+                "due_date": "02.04.2026",
+                "event": "x",
+                "items": [{"gear_id": 1, "qty_requested": 1}],
+            },
+        )
+        assert r_bad.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_vk_create_rental_request_404_unlinked(test_db_session):
+    """Секрет верный, но vk_user_id не привязан к аккаунту."""
+    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_003)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": 999_999},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "due_date": "02.04.2026",
+                "event": "Nobody",
+                "items": [{"gear_id": 1, "qty_requested": 1}],
+            },
+        )
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_vk_manager_decide_403_when_member_calls_manager_route(
+    test_db_session,
+):
+    vk_member = 600_010
+    _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        c = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "due_date": "02.04.2026",
+                "event": "Trip",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert c.status_code == 200
+        req_id = c.json()["id"]
+
+        forbidden = await ac.patch(
+            f"/api/integrations/vk/manager/rental-requests/{req_id}",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={"decision": "reject", "comment": "no"},
+        )
+        assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_vk_manager_decide_reject_success(test_db_session):
+    vk_member = 600_020
+    vk_mgr = 600_021
+    _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
+    await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        c = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "due_date": "02.04.2026",
+                "event": "Trip",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert c.status_code == 200
+        req_id = c.json()["id"]
+
+        d = await ac.patch(
+            f"/api/integrations/vk/manager/rental-requests/{req_id}",
+            params={"vk_user_id": vk_mgr},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={"decision": "reject", "comment": "later"},
+        )
+        assert d.status_code == 200
+        assert d.json()["status"] == "rejected"
+        assert d.json()["decision_comment"] == "later"
+
+
+@pytest.mark.asyncio
+async def test_vk_get_active_rentals_404_unlinked(test_db_session):
+    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_030)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get(
+            "/api/integrations/vk/rentals/active",
+            params={"vk_user_id": 888_888},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+        )
+        assert r.status_code == 404

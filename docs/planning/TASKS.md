@@ -201,6 +201,7 @@
 - DoD:
   - Поддержан основной поток участника.
   - Поддержаны ключевые уведомления для завснара.
+  - Делегированная аутентификация пользователя ботом через `Depends(get_user_for_vk_bot)` и `X-VK-Bot-Secret`: см. [docs/tech/TECH_SPEC.md](../tech/TECH_SPEC.md) §4.3 и план в [docs/tech/VK_BOT_API_AUTH_PLAN.md](../tech/VK_BOT_API_AUTH_PLAN.md).
 
 ### T-054 Добавить каркас/проект бота в репозиторий
 - Priority: P2

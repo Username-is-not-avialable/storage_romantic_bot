@@ -1,11 +1,60 @@
-from typing import Callable
+import secrets
+from typing import Annotated, Callable
 
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.config import get_settings
 from api.database import Gear, Rental, User, get_db
-from api.services.gear import get_gear_by_id
 from api.services.auth import resolve_user_by_session_token
+from api.services.gear import get_gear_by_id
+from api.services import vk_integration as vk_integration_svc
 from api.services.rentals import get_rental_by_id
+
+
+def verify_vk_bot_secret_header(
+    x_vk_bot_secret: str | None = Header(default=None, alias="X-VK-Bot-Secret"),
+) -> None:
+    """Проверка общего секрета между API и процессом VK-бота."""
+    settings = get_settings()
+    if not settings.vk_bot_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="VK bot integration is not configured: set VK_BOT_SECRET for the API service.",
+        )
+    if not x_vk_bot_secret:
+        raise HTTPException(status_code=401, detail="Missing X-VK-Bot-Secret header")
+    expected = settings.vk_bot_secret
+    if len(x_vk_bot_secret) != len(expected) or not secrets.compare_digest(x_vk_bot_secret, expected):
+        raise HTTPException(status_code=401, detail="Invalid X-VK-Bot-Secret")
+
+
+async def get_user_for_vk_bot(
+    vk_user_id: int = Query(..., description="Numeric VK user id from Long Poll / Callback"),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(verify_vk_bot_secret_header),
+) -> User:
+    user = await vk_integration_svc.get_user_profile_for_vk(db, vk_user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="VK account is not linked")
+    return user
+
+
+async def get_member_for_vk_bot(current_user: User = Depends(get_user_for_vk_bot)) -> User:
+    if current_user.role != "member":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return current_user
+
+
+async def get_manager_for_vk_bot(current_user: User = Depends(get_user_for_vk_bot)) -> User:
+    if current_user.role not in ("manager", "admin"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return current_user
+
+
+VkBotUser = Annotated[User, Depends(get_user_for_vk_bot)]
+VkBotMemberUser = Annotated[User, Depends(get_member_for_vk_bot)]
+VkBotManagerUser = Annotated[User, Depends(get_manager_for_vk_bot)]
 
 
 def get_session_token(auth_session: str | None = Cookie(default=None)) -> str | None:
