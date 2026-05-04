@@ -124,6 +124,22 @@
 - Ограничения:
   - `UNIQUE(rental_event_id, gear_id)` (в одном событии один тип снаряжения не дублируется)
 
+#### 5.2.5 Заявка на возврат (`rental_return_requests` + `rental_return_request_items`)
+- Назначение: участник инициирует сдачу по активной аренде; завснар (или админ) подтверждает или отклоняет. Фактический возврат при подтверждении выполняется тем же путём, что и менеджерский приём: через события `RETURN_PARTIAL` / `RETURN_FINAL` (сервис `return_rental`), без дублирования логики инвентаря.
+
+**`rental_return_requests` (шапка):**
+- `user_id` (FK → `users.id`) — инициатор; должен совпадать с владельцем `rentals.user_id` для указанной аренды.
+- `rental_id` (FK → `rentals.id`) — аренда, по которой сдают.
+- `target_manager_id` (FK → `users.id`, nullable) — выбранный завснар; если задан, решение принимает этот менеджер либо администратор (обход для согласованности процессов).
+- `status`: `pending` | `approved` | `rejected`
+- `created_at`, `decision_manager_id`, `decision_comment` (как у заявок на выдачу).
+
+**`rental_return_request_items` (строки заявки):**
+- `rental_return_request_id`, `gear_id`, `qty_return` (> 0)
+- `UNIQUE(rental_return_request_id, gear_id)`
+
+**Политика непересечения:** не более одной заявки в статусе `pending` на одну `rental_id` (проверка в сервисе + частичный уникальный индекс по БД).
+
 ### 5.3 Обязательные расширения
 - `Role`/`UserRole`: явные роли (`member`, `manager`, `admin`) вместо одного `is_manager`.
 - `BookingRequest` (`rental_requests` + `rental_request_items`):
@@ -169,7 +185,7 @@
 #### 7.1.1 Действия пользователя через VK-бота (помимо web-сессии)
 Контур **не заменяет** web-login: пароль и регистрация остаются на сайте. После привязки VK (`user_messenger_links`) бот вызывает эндпоинты с `X-VK-Bot-Secret` + `vk_user_id`; сервер через **`Depends(get_user_for_vk_bot)`** получает того же `User`, что и при сессии в браузере, и применяет те же RBAC-ограничения на уровне сервисов/роутеров.
 
-Минимальный набор integration-эндпоинтов (целевой, по мере внедрения): см. [VK_BOT_API_AUTH_PLAN.md](VK_BOT_API_AUTH_PLAN.md). Уже реализовано без этой зависимости: выдача кода привязки с сайта (`POST /api/auth/vk-link/request_code`, web-auth), завершение привязки и чтение профиля ботом (`POST /api/integrations/vk/link-complete`, `GET /api/integrations/vk/me`).
+Минимальный набор integration-эндпоинтов (целевой, по мере внедрения): см. [VK_BOT_API_AUTH_PLAN.md](VK_BOT_API_AUTH_PLAN.md). Уже реализовано без этой зависимости: выдача кода привязки с сайта (`POST /api/auth/vk-link/request_code`, web-auth), завершение привязки и чтение профиля ботом (`POST /api/integrations/vk/link-complete`, `GET /api/integrations/vk/me`). Справочник завснаров и администраторов с привязкой VK для бота (`GET /api/integrations/vk/managers`, только `X-VK-Bot-Secret`).
 
 **Зафиксированное решение по URL:** действия, которые в браузере выполняются с cookie-сессией, а из процесса VK-бота — с `X-VK-Bot-Secret` и `vk_user_id`, для бота **выставляются отдельными маршрутами** под префиксом `/api/integrations/vk/`, по смыслу зеркалирующими канонические пути из §7.3–§7.4 (конкретный список и контракт — в плане по ссылке выше). Так явно разделены публичный web-контур и доверенный интеграционный контур бота; усложняется случайная конфигурация «двойной» аутентификации на одном URL. **Доменная логика не дублируется:** вызываются те же функции сервисного слоя. Полное копирование длинных тел FastAPI-обработчиков между web и VK **нежелательно** — общие шаги (валидации доступа к сущности, вызов сервиса, сбор ответа) выносятся в переиспользуемые функции; см. правила в `.cursor/rules/project-standards.mdc` (раздел про дублирующиеся роутеры).
 
@@ -182,6 +198,10 @@
 - `POST /api/rental-requests`
 - `PATCH /api/rental-requests/{id}` (изменение состава/полей пока `pending`)
 - `PATCH /api/manager/rental-requests/{id}` (approve/reject + comment)
+
+### 7.3.1 Заявки на возврат по аренде (`rental_return_requests`)
+- `POST /api/rental-return-requests` — участник: `rental_id`, строки `(gear_id, qty_return)` в пределах остатка по аренде, опционально `target_manager_id` (`users.id`).
+- `PATCH /api/manager/rental-return-requests/{id}` — завснар/админ: `approve` / `reject` и комментарий; при `approve` в одной транзакции вызывается тот же поток, что и для `PATCH /api/rentals/{id}/return` (делегирование в `return_rental`).
 
 ### 7.4 Аренды
 - `POST /api/rentals/issue`

@@ -72,8 +72,11 @@ VkBotUser = Annotated[User, Depends(get_user_for_vk_bot)]
 |----------|------------|------------------------------|
 | Создать заявку на выдачу | `POST /api/rental-requests` | `POST /api/integrations/vk/rental-requests` + `vk_user_id` + secret |
 | Обновить заявку (pending) | `PATCH /api/rental-requests/{id}` | `PATCH /api/integrations/vk/rental-requests/{id}` |
+| Создать заявку на возврат | `POST /api/rental-return-requests` | `POST /api/integrations/vk/rental-return-requests` + `vk_user_id` + secret |
 | Список активных аренд участника | `GET /api/rentals/active` | `GET /api/integrations/vk/rentals/active?vk_user_id=` |
-| Решение завснара по заявке | `PATCH /api/manager/rental-requests/{id}` | `PATCH /api/integrations/vk/manager/rental-requests/{id}` + `vk_user_id` менеджера + secret |
+| Решение завснара по заявке на выдачу | `PATCH /api/manager/rental-requests/{id}` | `PATCH /api/integrations/vk/manager/rental-requests/{id}` + `vk_user_id` менеджера + secret |
+| Решение завснара по заявке на возврат | `PATCH /api/manager/rental-return-requests/{id}` | `PATCH /api/integrations/vk/manager/rental-return-requests/{id}` + `vk_user_id` менеджера + secret |
+| Список завснаров/админов с привязкой VK (для `target_manager_id` и уведомлений) | — | `GET /api/integrations/vk/managers` — только секрет бота, без `vk_user_id` |
 
 Реализация — **вызов тех же функций сервисного слоя**, что уже вызывают web-роутеры (копировать только «склейку» HTTP → сервис, как в тонких роутерах).
 
@@ -101,7 +104,7 @@ VkBotUser = Annotated[User, Depends(get_user_for_vk_bot)]
 
 ## 4. Что явно выходит за рамки этой фичи
 
-- Приём снаряжения по сценарию «участник инициирует, завснар подтверждает»: сейчас в REST только менеджерский `PATCH /api/rentals/{id}/return` — понадобится отдельная доменная доработка (заявка на возврат), см. диалог и спеку, это **не** часть только `get_user_for_vk_bot`.
+- Сценарий «участник инициирует возврат, завснар подтверждает» реализован отдельно от `get_user_for_vk_bot`: доменные сущности `rental_return_requests` и REST/VK-эндпоинты (см. [TECH_SPEC.md](TECH_SPEC.md) §5.2.5 и §7.3.1). Прямой менеджерский возврат без заявки по-прежнему доступен как `PATCH /api/rentals/{id}/return`.
 - Уведомления завснару в VK после создания заявки — канал отправки из API или из бота; зависимость `get_user_for_vk_bot` к этому не привязана.
 
 ## 5. Критерии готовности (DoD)

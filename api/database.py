@@ -7,9 +7,11 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -232,6 +234,59 @@ class RentalRequestItem(Base):
     __table_args__ = (
         UniqueConstraint("rental_request_id", "gear_id", name="uq_rental_request_gear"),
         CheckConstraint("qty_requested > 0", name="ck_rental_request_items_qty_positive"),
+    )
+
+
+class RentalReturnRequest(Base):
+    """Заявка участника на возврат снаряжения по активной аренде (подтверждение завснаром)."""
+
+    __tablename__ = "rental_return_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    rental_id = Column(Integer, ForeignKey("rentals.id"), nullable=False)
+    target_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    status = Column(String(20), nullable=False, default="pending")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utc_now)
+
+    decision_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    decision_comment = Column(String(300), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_rental_return_requests_status",
+        ),
+        Index(
+            "uq_rental_return_requests_one_pending_per_rental",
+            "rental_id",
+            unique=True,
+            sqlite_where=text("status = 'pending'"),
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+
+class RentalReturnRequestItem(Base):
+    __tablename__ = "rental_return_request_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rental_return_request_id = Column(
+        Integer,
+        ForeignKey("rental_return_requests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    gear_id = Column(Integer, ForeignKey("gear.id"), nullable=False)
+    qty_return = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "rental_return_request_id",
+            "gear_id",
+            name="uq_rental_return_request_items_req_gear",
+        ),
+        CheckConstraint("qty_return > 0", name="ck_rental_return_request_items_qty_positive"),
     )
 
 

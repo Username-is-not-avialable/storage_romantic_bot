@@ -21,6 +21,11 @@ from api.schemas.rental_request import (
     RentalRequestResponse,
     RentalRequestUpdate,
 )
+from api.schemas.rental_return_request import (
+    RentalReturnRequestCreate,
+    RentalReturnRequestDecision,
+    RentalReturnRequestResponse,
+)
 from api.schemas.vk_integration import RequestVkLinkCodeResponse, VkLinkCompleteRequest
 from api.services import vk_integration as vk_svc
 from api.services.rentals import list_active_rentals_for_user
@@ -28,6 +33,10 @@ from api.routers.rental_request_helpers import (
     create_rental_request_for_user_response,
     manager_decide_rental_request_response,
     update_pending_rental_request_for_owner_response,
+)
+from api.routers.rental_return_request_helpers import (
+    create_rental_return_request_for_user_response,
+    manager_decide_rental_return_request_response,
 )
 from api.routers.rentals import _build_rental_response
 
@@ -119,6 +128,38 @@ async def vk_manager_decide_rental_request(
     return await manager_decide_rental_request_response(
         db,
         rental_request_id=rental_request_id,
+        manager=manager,
+        decision=decision,
+    )
+
+
+@integrations_router.post(
+    "/rental-return-requests",
+    response_model=RentalReturnRequestResponse,
+)
+async def vk_create_rental_return_request(
+    body: RentalReturnRequestCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: VkBotMemberUser,
+):
+    return await create_rental_return_request_for_user_response(
+        db, user=current_user, body=body
+    )
+
+
+@integrations_router.patch(
+    "/manager/rental-return-requests/{return_request_id}",
+    response_model=RentalReturnRequestResponse,
+)
+async def vk_manager_decide_rental_return_request(
+    return_request_id: int,
+    decision: RentalReturnRequestDecision,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    manager: VkBotManagerUser,
+):
+    return await manager_decide_rental_return_request_response(
+        db,
+        return_request_id=return_request_id,
         manager=manager,
         decision=decision,
     )

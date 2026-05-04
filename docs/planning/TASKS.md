@@ -141,6 +141,16 @@
   - Поддержка частичного возврата без потери истории.
   - При полном возврате аренда закрывается.
 
+### T-038 Заявки на возврат снаряжения (участник → завснар → решение)
+- Priority: P0
+- Status: done
+- DoD:
+  - Таблицы `rental_return_requests` / `rental_return_request_items`, миграция Alembic.
+  - Участник создаёт заявку в `pending`; валидация владельца аренды, активной аренды, остатков по позициям, не более одной `pending` на аренду; опционально `target_manager_id`.
+  - Завснар/админ approve/reject; при approve — делегирование в `return_rental` в той же транзакции.
+  - REST и зеркальные маршруты `/api/integrations/vk/` без дублирования бизнес-логики.
+  - Автотесты (web + VK RBAC), спецификация в [TECH_SPEC.md](../tech/TECH_SPEC.md).
+
 ### T-037 Перейти на целевую модель аренд (events + items, append-only)
 - Priority: P0
 - Status: done

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,7 @@ from api.config import get_settings
 from api.database import Gear, User, UserMessengerLink
 from api.main import app
 from api.services.auth import hash_password
+from api.services.rentals import issue_rental
 
 TEST_VK_SECRET = "test-vk-bot-secret"
 
@@ -373,3 +376,101 @@ async def test_vk_get_active_rentals_404_unlinked(test_db_session):
             headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
         )
         assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_vk_create_and_approve_return_request(test_db_session):
+    vk_member = 700_010
+    vk_mgr = 700_011
+    member, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
+    mgr = await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
+
+    rental = await issue_rental(
+        session=test_db_session,
+        user_id=member.id,
+        issue_manager_id=mgr.id,
+        due_date=date(2026, 7, 1),
+        event="VK hike",
+        comment=None,
+        lines=[(gear.id, 1)],
+    )
+    await test_db_session.commit()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        c = await ac.post(
+            "/api/integrations/vk/rental-return-requests",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "rental_id": rental.id,
+                "items": [{"gear_id": gear.id, "qty_return": 1}],
+            },
+        )
+        assert c.status_code == 200
+        rr_id = c.json()["id"]
+        assert c.json()["status"] == "pending"
+
+        d = await ac.patch(
+            f"/api/integrations/vk/manager/rental-return-requests/{rr_id}",
+            params={"vk_user_id": vk_mgr},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={"decision": "approve", "comment": "vk ok"},
+        )
+        assert d.status_code == 200
+        assert d.json()["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_vk_return_request_404_unlinked(test_db_session):
+    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=700_020)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post(
+            "/api/integrations/vk/rental-return-requests",
+            params={"vk_user_id": 999_999_999},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={"rental_id": 1, "items": [{"gear_id": 1, "qty_return": 1}]},
+        )
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_vk_manager_return_request_403_member(test_db_session):
+    vk_member = 700_030
+    vk_mgr = 700_031
+    member, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
+    mgr = await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
+
+    rental = await issue_rental(
+        session=test_db_session,
+        user_id=member.id,
+        issue_manager_id=mgr.id,
+        due_date=date(2026, 7, 1),
+        event="VK hike",
+        comment=None,
+        lines=[(gear.id, 1)],
+    )
+    await test_db_session.commit()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        c = await ac.post(
+            "/api/integrations/vk/rental-return-requests",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "rental_id": rental.id,
+                "items": [{"gear_id": gear.id, "qty_return": 1}],
+            },
+        )
+        assert c.status_code == 200
+        rr_id = c.json()["id"]
+
+        forbidden = await ac.patch(
+            f"/api/integrations/vk/manager/rental-return-requests/{rr_id}",
+            params={"vk_user_id": vk_member},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={"decision": "reject", "comment": "no"},
+        )
+        assert forbidden.status_code == 403
