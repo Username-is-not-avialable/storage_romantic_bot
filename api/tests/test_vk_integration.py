@@ -474,3 +474,39 @@ async def test_vk_manager_return_request_403_member(test_db_session):
             json={"decision": "reject", "comment": "no"},
         )
         assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_vk_list_managers_with_vk_ok_and_401(test_db_session: AsyncSession):
+    vk_mgr = 800_010
+    await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
+    test_db_session.add(
+        User(
+            email="only_admin@example.com",
+            password_hash=hash_password("p"),
+            full_name="Admin No Vk",
+            phone="+8000",
+            role="admin",
+        )
+    )
+    await test_db_session.commit()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        bad = await ac.get("/api/integrations/vk/managers")
+        assert bad.status_code == 401
+
+        r = await ac.get(
+            "/api/integrations/vk/managers",
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        rows = payload["managers"]
+        assert len(rows) >= 2
+        by_vk = {m["vk_user_id"]: m for m in rows if m["vk_user_id"] is not None}
+        assert vk_mgr in by_vk
+        assert by_vk[vk_mgr]["full_name"] == "VK Manager"
+        no_vk_admins = [m for m in rows if m["full_name"] == "Admin No Vk"]
+        assert len(no_vk_admins) == 1
+        assert no_vk_admins[0]["vk_user_id"] is None

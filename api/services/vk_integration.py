@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
 from api.database import User, UserMessengerLink, VkLinkRequest
+from api.schemas.vk_integration import VkManagerWithLink
 from api.services.auth import hash_secret
 
 
@@ -100,3 +101,38 @@ async def get_user_profile_for_vk(session: AsyncSession, vk_user_id: int) -> Use
         )
     )
     return result.scalars().first()
+
+
+async def list_managers_with_vk(
+    session: AsyncSession,
+) -> list[VkManagerWithLink]:
+    """Пользователи с ролью manager/admin и опционально привязка VK для уведомлений в боте."""
+
+    q = (
+        select(User, UserMessengerLink)
+        .outerjoin(
+            UserMessengerLink,
+            (UserMessengerLink.user_id == User.id)
+            & (UserMessengerLink.provider == "vk"),
+        )
+        .where(User.role.in_(("manager", "admin")))
+        .order_by(User.id.asc())
+    )
+    rows = (await session.execute(q)).all()
+    out: list[VkManagerWithLink] = []
+    for user, link in rows:
+        vk_id: int | None = None
+        if link is not None:
+            try:
+                vk_id = int(link.external_user_id)
+            except (TypeError, ValueError):
+                vk_id = None
+        out.append(
+            VkManagerWithLink(
+                user_id=user.id,
+                full_name=user.full_name,
+                role=user.role,
+                vk_user_id=vk_id,
+            )
+        )
+    return out

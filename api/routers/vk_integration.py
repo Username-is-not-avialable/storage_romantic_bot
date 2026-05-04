@@ -26,7 +26,11 @@ from api.schemas.rental_return_request import (
     RentalReturnRequestDecision,
     RentalReturnRequestResponse,
 )
-from api.schemas.vk_integration import RequestVkLinkCodeResponse, VkLinkCompleteRequest
+from api.schemas.vk_integration import (
+    RequestVkLinkCodeResponse,
+    VkLinkCompleteRequest,
+    VkManagersWithVkList,
+)
 from api.services import vk_integration as vk_svc
 from api.services.rentals import list_active_rentals_for_user
 from api.routers.rental_request_helpers import (
@@ -42,6 +46,15 @@ from api.routers.rentals import _build_rental_response
 
 auth_vk_router = APIRouter(prefix="/api/auth/vk-link", tags=["Auth"])
 integrations_router = APIRouter(prefix="/api/integrations/vk", tags=["VK Integration"])
+
+@integrations_router.get("/managers", response_model=VkManagersWithVkList)
+async def vk_list_managers_with_vk(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: None = Depends(verify_vk_bot_secret_header),
+):
+    """Список завснаров и админов с числовым VK id при наличии привязки (для клавиатуры бота)."""
+    managers = await vk_svc.list_managers_with_vk(db)
+    return VkManagersWithVkList(managers=managers)
 
 
 @auth_vk_router.post("/request_code", response_model=RequestVkLinkCodeResponse)
