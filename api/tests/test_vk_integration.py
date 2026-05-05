@@ -228,6 +228,39 @@ async def _seed_manager_with_vk(session: AsyncSession, *, vk_user_id: int) -> Us
     return mgr
 
 
+async def _seed_manager_with_vk_and_gear(
+    session: AsyncSession, *, vk_user_id: int
+) -> tuple[User, Gear]:
+    """Менеджер с привязкой VK и позицией снаряжения для заявок от имени менеджера."""
+    user = User(
+        email="vk_mgr_rental_req@example.com",
+        password_hash=hash_password("mgr"),
+        full_name="VK Manager Rental",
+        phone="+2998",
+        role="manager",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    session.add(
+        UserMessengerLink(
+            user_id=user.id,
+            provider="vk",
+            external_user_id=str(vk_user_id),
+        )
+    )
+    gear = Gear(
+        name="VkMgrRentalGear",
+        total_quantity=10,
+        available_count=10,
+        description="t",
+    )
+    session.add(gear)
+    await session.commit()
+    await session.refresh(gear)
+    return user, gear
+
+
 @pytest.mark.asyncio
 async def test_vk_create_rental_request_success(test_db_session):
     vk_id = 600_001
@@ -252,6 +285,30 @@ async def test_vk_create_rental_request_success(test_db_session):
         assert data["event"] == "TripVK"
         assert len(data["items"]) == 1
         assert data["items"][0]["gear_id"] == gear.id
+
+
+@pytest.mark.asyncio
+async def test_vk_manager_can_create_rental_request(test_db_session):
+    vk_id = 600_004
+    _, gear = await _seed_manager_with_vk_and_gear(test_db_session, vk_user_id=vk_id)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post(
+            "/api/integrations/vk/rental-requests",
+            params={"vk_user_id": vk_id},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "due_date": "03.04.2026",
+                "event": "Mgr via bot",
+                "comment": "m",
+                "deposit_document": "m.pdf",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "pending"
+        assert data["event"] == "Mgr via bot"
 
 
 @pytest.mark.asyncio
@@ -419,6 +476,47 @@ async def test_vk_create_and_approve_return_request(test_db_session):
         )
         assert d.status_code == 200
         assert d.json()["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_vk_manager_can_create_return_request_own_rental(test_db_session):
+    vk_mgr = 700_041
+    mgr, gear = await _seed_manager_with_vk_and_gear(test_db_session, vk_user_id=vk_mgr)
+    admin = User(
+        email="vk_admin_issue_only@example.com",
+        password_hash=hash_password("a"),
+        full_name="Admin Issue Only",
+        phone="+700041",
+        role="admin",
+    )
+    test_db_session.add(admin)
+    await test_db_session.commit()
+    await test_db_session.refresh(admin)
+
+    rental = await issue_rental(
+        session=test_db_session,
+        user_id=mgr.id,
+        issue_manager_id=admin.id,
+        due_date=date(2026, 8, 1),
+        event="Mgr self vk",
+        comment=None,
+        lines=[(gear.id, 1)],
+    )
+    await test_db_session.commit()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        c = await ac.post(
+            "/api/integrations/vk/rental-return-requests",
+            params={"vk_user_id": vk_mgr},
+            headers={"X-VK-Bot-Secret": TEST_VK_SECRET},
+            json={
+                "rental_id": rental.id,
+                "items": [{"gear_id": gear.id, "qty_return": 1}],
+            },
+        )
+        assert c.status_code == 200
+        assert c.json()["status"] == "pending"
 
 
 @pytest.mark.asyncio

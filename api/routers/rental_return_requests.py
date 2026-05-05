@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import User, get_db
-from api.dependencies import require_manager_or_admin, require_roles
+from api.dependencies import require_manager_or_admin, require_rental_request_submitter
 from api.schemas.rental_return_request import (
     RentalReturnRequestCreate,
     RentalReturnRequestDecision,
@@ -29,7 +29,7 @@ manager_router = APIRouter(
 async def create_rental_return_request_endpoint(
     body: RentalReturnRequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_roles("member")),
+    current_user: User = Depends(require_rental_request_submitter()),
 ):
     """Создаёт заявку на возврат (статус `pending`)."""
 

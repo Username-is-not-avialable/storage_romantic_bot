@@ -165,6 +165,39 @@ async def test_return_request_create_approve_closes_rental(test_db_session: Asyn
 
 
 @pytest.mark.asyncio
+async def test_manager_can_create_return_request_for_own_rental(test_db_session: AsyncSession):
+    _, manager, admin = await _seed_default_users(test_db_session)
+    gear = await _seed_gear(test_db_session, name="Mgr RR Own", total=10, available=10)
+
+    rental = await issue_rental(
+        session=test_db_session,
+        user_id=manager.id,
+        issue_manager_id=admin.id,
+        due_date=date(2026, 6, 15),
+        event="Mgr borrow",
+        comment=None,
+        lines=[(gear.id, 1)],
+    )
+    await test_db_session.commit()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(
+            "/api/auth/login",
+            json={"email": "manager@example.com", "password": "managerpass"},
+        )
+        create = await ac.post(
+            "/api/rental-return-requests/",
+            json={
+                "rental_id": rental.id,
+                "items": [{"gear_id": gear.id, "qty_return": 1}],
+            },
+        )
+        assert create.status_code == 200
+        assert create.json()["status"] == "pending"
+
+
+@pytest.mark.asyncio
 async def test_return_request_reject_does_not_touch_rental(test_db_session: AsyncSession):
     member, manager, _ = await _seed_default_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="RR Rej", total=5, available=5)

@@ -50,8 +50,12 @@ def start_return_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: i
     if code != 200:
         send_peer(vk, peer_id=peer_id, text=f"Не удалось проверить профиль ({code}). {format_api_error(me_body)}")
         return
-    if me_body.get("role") != "member":
-        send_peer(vk, peer_id=peer_id, text="Заявку на возврат через бот могут отправить только участники (member).")
+    if me_body.get("role") not in {"member", "manager", "admin"}:
+        send_peer(
+            vk,
+            peer_id=peer_id,
+            text="Заявку на возврат через бот могут оформить участники, менеджеры и администраторы.",
+        )
         return
 
     mc, mbody = api.managers()

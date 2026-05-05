@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import User, get_db
 from api.dependencies import (
     VkBotManagerUser,
-    VkBotMemberUser,
+    VkBotRentalApplicantUser,
     VkBotUser,
     get_current_user,
     verify_vk_bot_secret_header,
@@ -95,7 +95,7 @@ async def vk_me(current_user: VkBotUser):
 async def vk_create_rental_request(
     body: RentalRequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: VkBotMemberUser,
+    current_user: VkBotRentalApplicantUser,
 ):
     return await create_rental_request_for_user_response(
         db, user=current_user, body=body
@@ -107,7 +107,7 @@ async def vk_update_rental_request(
     rental_request_id: int,
     body: RentalRequestUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: VkBotMemberUser,
+    current_user: VkBotRentalApplicantUser,
 ):
     return await update_pending_rental_request_for_owner_response(
         db,
@@ -153,7 +153,7 @@ async def vk_manager_decide_rental_request(
 async def vk_create_rental_return_request(
     body: RentalReturnRequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: VkBotMemberUser,
+    current_user: VkBotRentalApplicantUser,
 ):
     return await create_rental_return_request_for_user_response(
         db, user=current_user, body=body

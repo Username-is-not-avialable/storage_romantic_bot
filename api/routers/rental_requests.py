@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import User, get_db
-from api.dependencies import require_manager_or_admin, require_roles
+from api.dependencies import require_manager_or_admin, require_rental_request_submitter
 from api.schemas.rental_request import (
     ManagerRentalRequestsList,
     RentalRequestCreate,
@@ -32,7 +32,7 @@ manager_router = APIRouter(
 async def create_rental_request_endpoint(
     body: RentalRequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_roles("member")),
+    current_user: User = Depends(require_rental_request_submitter()),
 ):
     """Создает заявку на выдачу снаряжения (статус `pending`)."""
 
@@ -46,7 +46,7 @@ async def update_rental_request_endpoint(
     rental_request_id: int,
     body: RentalRequestUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_roles("member")),
+    current_user: User = Depends(require_rental_request_submitter()),
 ):
     """Обновляет состав/поля заявки пока она в `pending`."""
 

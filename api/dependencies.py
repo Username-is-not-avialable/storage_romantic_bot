@@ -40,8 +40,9 @@ async def get_user_for_vk_bot(
     return user
 
 
-async def get_member_for_vk_bot(current_user: User = Depends(get_user_for_vk_bot)) -> User:
-    if current_user.role != "member":
+async def get_rental_applicant_for_vk_bot(current_user: User = Depends(get_user_for_vk_bot)) -> User:
+    """Заявки на выдачу/возврат через VK: member, manager, admin."""
+    if current_user.role not in ("member", "manager", "admin"):
         raise HTTPException(status_code=403, detail="Forbidden")
     return current_user
 
@@ -53,7 +54,7 @@ async def get_manager_for_vk_bot(current_user: User = Depends(get_user_for_vk_bo
 
 
 VkBotUser = Annotated[User, Depends(get_user_for_vk_bot)]
-VkBotMemberUser = Annotated[User, Depends(get_member_for_vk_bot)]
+VkBotRentalApplicantUser = Annotated[User, Depends(get_rental_applicant_for_vk_bot)]
 VkBotManagerUser = Annotated[User, Depends(get_manager_for_vk_bot)]
 
 
@@ -88,6 +89,11 @@ def require_roles(*allowed_roles: str) -> Callable[[User], User]:
 
 def require_manager_or_admin() -> Callable[[User], User]:
     return require_roles("manager", "admin")
+
+
+def require_rental_request_submitter() -> Callable[[User], User]:
+    """Оформление заявок на выдачу/возврат (веб): те же роли, что у участника-клиента."""
+    return require_roles("member", "manager", "admin")
 
 
 def require_admin() -> Callable[[User], User]:

@@ -270,6 +270,42 @@ async def test_manager_queue_supports_filters(
 
 
 @pytest.mark.asyncio
+async def test_manager_can_create_and_update_rental_request(
+    test_db_session: AsyncSession,
+):
+    await _seed_users(test_db_session)
+    gear = await _seed_gear(test_db_session, name="MgrTent", total=10, available=10)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        assert (
+            await ac.post(
+                "/api/auth/login",
+                json={"email": "manager@example.com", "password": "managerpass"},
+            )
+        ).status_code == 200
+        create_resp = await ac.post(
+            "/api/rental-requests/",
+            json={
+                "due_date": "05.04.2026",
+                "event": "Mgr trip",
+                "comment": "c1",
+                "deposit_document": "doc.pdf",
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert create_resp.status_code == 200
+        request_id = create_resp.json()["id"]
+
+        patch_resp = await ac.patch(
+            f"/api/rental-requests/{request_id}",
+            json={"comment": "c2"},
+        )
+        assert patch_resp.status_code == 200
+        assert patch_resp.json()["comment"] == "c2"
+
+
+@pytest.mark.asyncio
 async def test_manager_queue_forbidden_for_member(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
     transport = httpx.ASGITransport(app=app)

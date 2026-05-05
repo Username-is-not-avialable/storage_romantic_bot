@@ -102,11 +102,11 @@ def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: in
             text=f"Не удалось проверить профиль ({code}). {format_api_error(me_body)}",
         )
         return
-    if me_body.get("role") != "member":
+    if me_body.get("role") not in {"member", "manager", "admin"}:
         send_peer(
             vk,
             peer_id=peer_id,
-            text="Заявку на выдачу через бот могут отправить только участники (роль member).",
+            text="Заявку на выдачу через бот могут оформить участники, менеджеры и администраторы.",
         )
         return
     mc, mbody = api.managers()
