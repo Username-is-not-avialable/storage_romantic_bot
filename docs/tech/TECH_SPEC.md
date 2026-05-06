@@ -37,6 +37,7 @@
 - `API Core` (FastAPI): REST эндпоинты, валидация, RBAC.
 - `Domain Services`: бизнес-логика заявок, аренд, доступности.
 - `Persistence`: PostgreSQL, SQLAlchemy ORM.
+- Веб-интерфейс (React SPA + shadcn/ui): сборка и публикация через Nginx совместно с API — см. [WEB_FRONTEND.md](WEB_FRONTEND.md).
 - `Integrations`:
 - Архитектура диалогов бота: [BOT_DIALOG.md](BOT_DIALOG.md)
   - VK bot adapter
