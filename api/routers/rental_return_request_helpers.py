@@ -32,9 +32,13 @@ async def rental_return_request_to_response(
     )
     items = items_result.scalars().all()
 
+    author = await db.get(User, rr.user_id)
+    user_full_name = author.full_name if author else f"Участник #{rr.user_id}"
+
     return RentalReturnRequestResponse(
         id=rr.id,
         user_id=rr.user_id,
+        user_full_name=user_full_name,
         rental_id=rr.rental_id,
         target_manager_id=rr.target_manager_id,
         status=rr.status,

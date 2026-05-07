@@ -76,6 +76,7 @@ class RentalResponse(BaseModel):
 
     id: int
     user_id: int
+    user_full_name: str
     issue_manager_id: int
     issue_date: date
     due_date: date

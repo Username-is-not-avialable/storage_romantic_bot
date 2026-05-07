@@ -32,6 +32,7 @@ class RentalReturnRequestResponse(BaseModel):
 
     id: int
     user_id: int
+    user_full_name: str
     rental_id: int
     target_manager_id: int | None
     status: str

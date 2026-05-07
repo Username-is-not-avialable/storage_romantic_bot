@@ -44,9 +44,12 @@ async def _build_rental_response(db: AsyncSession, rental: Rental) -> RentalResp
                 qty_outstanding=out_map[ri.gear_id],
             )
         )
+    renter = await db.get(User, rental.user_id)
+    user_full_name = renter.full_name if renter else f"Участник #{rental.user_id}"
     return RentalResponse(
         id=rental.id,
         user_id=rental.user_id,
+        user_full_name=user_full_name,
         issue_manager_id=rental.issue_manager_id,
         issue_date=rental.issue_date,
         due_date=rental.due_date,
