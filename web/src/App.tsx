@@ -1,22 +1,39 @@
-import { Button } from "@/components/ui/button";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-function App() {
-  return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 px-6">
-      <div className="text-center space-y-2 max-w-lg">
-        <h1 className="text-2xl font-semibold tracking-tight">Склад снаряжения</h1>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          Веб-интерфейс и API доступны под одним адресом: статика здесь, запросы к бэкенду — на префикс{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">/api</code>.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button>Войти (скоро)</Button>
-        <Button variant="secondary">Каталог (скоро)</Button>
-        <Button variant="outline">Контур shadcn</Button>
-      </div>
-    </main>
-  );
+import { AppLayout } from "@/components/layout/AppLayout";
+import { HomePage } from "@/routes/HomePage";
+import { LoginPage } from "@/routes/LoginPage";
+import { CatalogPage } from "@/routes/CatalogPage";
+import { DashboardPage } from "@/routes/DashboardPage";
+import { NewRentalRequestPage } from "@/routes/NewRentalRequestPage";
+import { NewReturnRequestPage } from "@/routes/NewReturnRequestPage";
+import { ManagerRentalRequestsPage } from "@/routes/ManagerRentalRequestsPage";
+import { ManagerReturnRequestsPage } from "@/routes/ManagerReturnRequestsPage";
+import { ManagerRentalsPage } from "@/routes/ManagerRentalsPage";
+import { AdminUsersPage } from "@/routes/AdminUsersPage";
+
+const router = createBrowserRouter([
+  {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
+    path: "/",
+    element: <AppLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "catalog", element: <CatalogPage /> },
+      { path: "me", element: <DashboardPage /> },
+      { path: "requests/new", element: <NewRentalRequestPage /> },
+      { path: "me/return-requests/new", element: <NewReturnRequestPage /> },
+      { path: "manager/requests", element: <ManagerRentalRequestsPage /> },
+      { path: "manager/return-requests", element: <ManagerReturnRequestsPage /> },
+      { path: "manager/rentals", element: <ManagerRentalsPage /> },
+      { path: "admin/users", element: <AdminUsersPage /> },
+    ],
+  },
+]);
+
+export function App() {
+  return <RouterProvider router={router} />;
 }
-
-export default App;
