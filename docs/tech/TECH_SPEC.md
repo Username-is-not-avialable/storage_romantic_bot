@@ -196,6 +196,7 @@
 - `GET /api/availability?gear_id=&from=&to=`
 
 ### 7.3 Заявки на выдачу (rental requests; не путать с бронированием)
+- При создании и правке заявки в `pending` суммарное запрошенное количество по каждой позиции не должно превышать текущий `gear.available_count` (иначе 400 с явным текстом ошибки).
 - `GET /api/rental-requests` — список заявок текущего пользователя (опционально `status`, `sort_order`).
 - `POST /api/rental-requests`
 - `PATCH /api/rental-requests/{id}` (изменение состава/полей пока `pending`)

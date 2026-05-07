@@ -1,12 +1,13 @@
 import pytest
 import httpx
+from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.database import Gear, Rental, RentalEvent, RentalItem, RentalRequest
+from api.database import Gear, Rental, RentalEvent, RentalItem, RentalRequest, User
 from api.main import app
-from api.database import User
 from api.services.auth import hash_password
+from api.services.rentals import issue_rental
 
 
 async def _seed_users(session: AsyncSession) -> None:
@@ -176,9 +177,46 @@ async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncSession):
+async def test_create_rental_request_rejects_qty_above_available(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
-    gear = await _seed_gear(test_db_session, name="Tent3", total=10, available=1)
+    gear = await _seed_gear(test_db_session, name="TentOver", total=10, available=1)
+    gear_id = gear.id
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        assert (
+            await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        ).status_code == 200
+        create_resp = await ac.post(
+            "/api/rental-requests/",
+            json={
+                "due_date": "02.04.2026",
+                "event": "Trip",
+                "deposit_document": "doc.pdf",
+                "items": [{"gear_id": gear_id, "qty_requested": 2}],
+            },
+        )
+        assert create_resp.status_code == 400
+        assert "Недостаточно" in create_resp.json()["detail"]
+
+    gear_res = await test_db_session.execute(select(Gear).where(Gear.id == gear_id))
+    gear_after = gear_res.scalars().first()
+    assert gear_after is not None
+    assert gear_after.available_count == 1
+
+
+@pytest.mark.asyncio
+async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncSession):
+    """Заявка создана при достаточном остатке; к моменту approve склад уже разобран — issue_rental отклоняет."""
+
+    await _seed_users(test_db_session)
+    m_res = await test_db_session.execute(select(User).where(User.email == "member@example.com"))
+    member = m_res.scalars().first()
+    mgr_res = await test_db_session.execute(select(User).where(User.email == "manager@example.com"))
+    manager = mgr_res.scalars().first()
+    assert member is not None and manager is not None
+
+    gear = await _seed_gear(test_db_session, name="Tent3", total=10, available=3)
     gear_id = gear.id
 
     transport = httpx.ASGITransport(app=app)
@@ -190,12 +228,30 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
+                "deposit_document": "doc.pdf",
                 "items": [{"gear_id": gear_id, "qty_requested": 2}],
             },
         )
         assert create_resp.status_code == 200
         request_id = create_resp.json()["id"]
 
+    await issue_rental(
+        session=test_db_session,
+        user_id=manager.id,
+        issue_manager_id=manager.id,
+        due_date=date(2026, 4, 1),
+        event="Другая выдача",
+        comment=None,
+        lines=[(gear_id, 2)],
+        fee_status_snapshot=None,
+    )
+    await test_db_session.commit()
+
+    g_row = (await test_db_session.execute(select(Gear).where(Gear.id == gear_id))).scalars().first()
+    assert g_row is not None
+    assert g_row.available_count == 1
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         manager_login = await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
         assert manager_login.status_code == 200
         approve_resp = await ac.patch(
@@ -204,9 +260,9 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
         )
         assert approve_resp.status_code == 400
 
-    # Инвентарь не должен измениться
     gear_res = await test_db_session.execute(select(Gear).where(Gear.id == gear_id))
     gear_after = gear_res.scalars().first()
+    assert gear_after is not None
     assert gear_after.available_count == 1
 
     req_res = await test_db_session.execute(

@@ -11,6 +11,28 @@ from api.database import Gear, Rental, RentalRequest, RentalRequestItem
 from api.services.rentals import issue_rental
 
 
+def _validate_request_items_vs_available(
+    items_list: list,
+    gears: dict[int, Gear],
+) -> None:
+    """Проверка, что по каждой позиции суммарно запрошено не больше, чем есть на складе."""
+
+    qty_by_gear: dict[int, int] = {}
+    for item in items_list:
+        gid = int(item["gear_id"])
+        q = int(item["qty_requested"])
+        if q <= 0:
+            raise ValueError("Количество должно быть больше нуля")
+        qty_by_gear[gid] = qty_by_gear.get(gid, 0) + q
+
+    for gid, need in qty_by_gear.items():
+        g = gears[gid]
+        if need > g.available_count:
+            raise ValueError(
+                f"Недостаточно снаряжения «{g.name}»: запрошено {need} шт., доступно {g.available_count}"
+            )
+
+
 async def get_rental_request_by_id(
     rental_request_id: int,
     session: AsyncSession,
@@ -81,6 +103,8 @@ async def create_rental_request(
     if missing:
         raise ValueError("Снаряжение не найдено")
 
+    _validate_request_items_vs_available(items_list, gears)
+
     rental_request = RentalRequest(
         user_id=user_id,
         due_date=due_date,
@@ -122,6 +146,8 @@ async def update_rental_request_items(
     missing = gear_ids - set(gears.keys())
     if missing:
         raise ValueError("Снаряжение не найдено")
+
+    _validate_request_items_vs_available(items_list, gears)
 
     await session.execute(
         RentalRequestItem.__table__.delete().where(
