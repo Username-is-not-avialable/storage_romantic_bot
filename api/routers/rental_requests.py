@@ -28,6 +28,34 @@ manager_router = APIRouter(
 )
 
 
+@router.get("/", response_model=ManagerRentalRequestsList)
+async def list_my_rental_requests_endpoint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: User = Depends(require_rental_request_submitter()),
+    status: Literal["pending", "approved", "rejected"] | None = None,
+    sort_order: Literal["asc", "desc"] = "desc",
+):
+    """Список заявок на выдачу текущего пользователя."""
+
+    q = build_manager_rental_requests_query(
+        status=status,
+        user_id=current_user.id,
+        due_date_from=None,
+        due_date_to=None,
+        created_from=None,
+        created_to=None,
+        sort_order=sort_order,
+    )
+    result = await db.execute(q)
+    requests = result.scalars().all()
+    return ManagerRentalRequestsList(
+        requests=[
+            await rental_request_to_response(db=db, rental_request=request)
+            for request in requests
+        ]
+    )
+
+
 @router.post("/", response_model=RentalRequestResponse)
 async def create_rental_request_endpoint(
     body: RentalRequestCreate,

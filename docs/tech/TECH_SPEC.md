@@ -196,12 +196,15 @@
 - `GET /api/availability?gear_id=&from=&to=`
 
 ### 7.3 Заявки на выдачу (rental requests; не путать с бронированием)
+- `GET /api/rental-requests` — список заявок текущего пользователя (опционально `status`, `sort_order`).
 - `POST /api/rental-requests`
 - `PATCH /api/rental-requests/{id}` (изменение состава/полей пока `pending`)
 - `PATCH /api/manager/rental-requests/{id}` (approve/reject + comment)
 
 ### 7.3.1 Заявки на возврат по аренде (`rental_return_requests`)
+- `GET /api/rental-return-requests` — список заявок на возврат текущего пользователя (опционально `status`).
 - `POST /api/rental-return-requests` — участник: `rental_id`, строки `(gear_id, qty_return)` в пределах остатка по аренде, опционально `target_manager_id` (`users.id`).
+- `GET /api/manager/rental-return-requests` — очередь для завснара/админа (опционально `status`, `user_id`).
 - `PATCH /api/manager/rental-return-requests/{id}` — завснар/админ: `approve` / `reject` и комментарий; при `approve` в одной транзакции вызывается тот же поток, что и для `PATCH /api/rentals/{id}/return` (делегирование в `return_rental`).
 
 ### 7.4 Аренды

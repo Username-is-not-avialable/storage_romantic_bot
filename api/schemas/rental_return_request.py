@@ -42,3 +42,7 @@ class RentalReturnRequestResponse(BaseModel):
     @field_serializer("created_at")
     def _ser_created_at(self, v: datetime) -> str:
         return v.isoformat()
+
+
+class RentalReturnRequestsList(BaseModel):
+    requests: list[RentalReturnRequestResponse]

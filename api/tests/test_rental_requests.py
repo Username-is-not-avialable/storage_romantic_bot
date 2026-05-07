@@ -314,3 +314,36 @@ async def test_manager_queue_forbidden_for_member(test_db_session: AsyncSession)
         assert login.status_code == 200
         resp = await ac.get("/api/manager/rental-requests/")
         assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_member_lists_only_own_rental_requests(test_db_session: AsyncSession):
+    await _seed_users(test_db_session)
+    gear = await _seed_gear(test_db_session, name="ListTent", total=10, available=10)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        create = await ac.post(
+            "/api/rental-requests/",
+            json={
+                "due_date": "02.04.2026",
+                "event": "Trip",
+                "comment": None,
+                "deposit_document": None,
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
+            },
+        )
+        assert create.status_code == 200
+        rid = create.json()["id"]
+
+        mine = await ac.get("/api/rental-requests/")
+        assert mine.status_code == 200
+        payload = mine.json()
+        assert len(payload["requests"]) == 1
+        assert payload["requests"][0]["id"] == rid
+
+        await ac.post("/api/auth/login", json={"email": "manager@example.com", "password": "managerpass"})
+        mgr_view = await ac.get("/api/rental-requests/")
+        assert mgr_view.status_code == 200
+        assert mgr_view.json()["requests"] == []

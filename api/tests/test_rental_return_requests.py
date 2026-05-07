@@ -380,3 +380,65 @@ async def test_target_manager_only_that_manager_or_admin(test_db_session: AsyncS
         )
         assert ok.status_code == 200
         assert ok.json()["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_return_request_list_mine_and_manager_queue(test_db_session: AsyncSession):
+    member, manager, _ = await _seed_default_users(test_db_session)
+    gear = await _seed_gear(test_db_session, name="RR List", total=10, available=10)
+
+    rental = await issue_rental(
+        session=test_db_session,
+        user_id=member.id,
+        issue_manager_id=manager.id,
+        due_date=date(2026, 6, 1),
+        event="Hike",
+        comment=None,
+        lines=[(gear.id, 2)],
+    )
+    await test_db_session.commit()
+    await test_db_session.refresh(rental)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(
+            "/api/auth/login",
+            json={"email": "member@example.com", "password": "memberpass"},
+        )
+        create = await ac.post(
+            "/api/rental-return-requests/",
+            json={
+                "rental_id": rental.id,
+                "items": [{"gear_id": gear.id, "qty_return": 1}],
+            },
+        )
+        assert create.status_code == 200
+        rr_id = create.json()["id"]
+
+        mine = await ac.get("/api/rental-return-requests/?status=pending")
+        assert mine.status_code == 200
+        assert len(mine.json()["requests"]) == 1
+        assert mine.json()["requests"][0]["id"] == rr_id
+
+        await ac.post(
+            "/api/auth/login",
+            json={"email": "manager@example.com", "password": "managerpass"},
+        )
+        queue = await ac.get("/api/manager/rental-return-requests/?status=pending")
+        assert queue.status_code == 200
+        ids = {r["id"] for r in queue.json()["requests"]}
+        assert rr_id in ids
+
+
+@pytest.mark.asyncio
+async def test_manager_return_request_queue_forbidden_for_member(test_db_session: AsyncSession):
+    await _seed_default_users(test_db_session)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(
+            "/api/auth/login",
+            json={"email": "member@example.com", "password": "memberpass"},
+        )
+        r = await ac.get("/api/manager/rental-return-requests/")
+        assert r.status_code == 403
