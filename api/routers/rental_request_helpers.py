@@ -15,6 +15,7 @@ from api.schemas.rental_request import (
 )
 from api.services.rental_requests import (
     approve_rental_request,
+    assert_valid_rental_target_manager,
     create_rental_request,
     get_rental_request_by_id,
     reject_rental_request,
@@ -34,9 +35,14 @@ async def rental_request_to_response(
     )
     items = items_result.scalars().all()
 
+    author = await db.get(User, rental_request.user_id)
+    user_full_name = author.full_name if author else f"Участник #{rental_request.user_id}"
+
     return RentalRequestResponse(
         id=rental_request.id,
         user_id=rental_request.user_id,
+        user_full_name=user_full_name,
+        target_manager_id=rental_request.target_manager_id,
         created_at=rental_request.created_at,
         due_date=rental_request.due_date,
         event=rental_request.event,
@@ -68,6 +74,7 @@ async def create_rental_request_for_user_response(
             event=body.event,
             comment=body.comment,
             deposit_document=body.deposit_document,
+            target_manager_id=body.target_manager_id,
             items=[it.model_dump() for it in body.items],
         )
         await db.commit()
@@ -107,6 +114,11 @@ async def update_pending_rental_request_for_owner_response(
             rental_request.comment = update_data["comment"]
         if "deposit_document" in update_data:
             rental_request.deposit_document = update_data["deposit_document"]
+        if "target_manager_id" in update_data and update_data["target_manager_id"] is not None:
+            await assert_valid_rental_target_manager(
+                db, update_data["target_manager_id"]
+            )
+            rental_request.target_manager_id = update_data["target_manager_id"]
         if "items" in update_data and update_data["items"] is not None:
             await update_rental_request_items(
                 session=db,

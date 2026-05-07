@@ -145,6 +145,7 @@
 - `Role`/`UserRole`: явные роли (`member`, `manager`, `admin`) вместо одного `is_manager`.
 - `BookingRequest` (`rental_requests` + `rental_request_items`):
   - статус: `pending`, `approved`, `rejected`, `cancelled`, `expired`
+  - `target_manager_id` (FK → `users.id`) — обязателен при создании: адресат заявки (активный `manager` или `admin`); для VK-бота уведомление с кнопками уходит **только** этому пользователю, если у него привязан VK
   - состав: позиции и количества
   - залоговый документ
   - дата планируемого возврата
@@ -182,7 +183,7 @@
 - `POST /api/auth/request-code`
 - `POST /api/auth/verify-code`
 - `GET /api/auth/me`
-- `GET /api/users/managers` — справочник активных завснаров (`manager`) для веб-форм (`id`, `full_name`); доступ с cookie-сессией для ролей, оформляющих заявки на выдачу/возврат (`member`, `manager`, `admin`).
+- `GET /api/users/managers` — справочник активных завснаров и администраторов (`manager` и `admin`) для веб-форм (`id`, `full_name`); доступ с cookie-сессией для ролей, оформляющих заявки на выдачу/возврат (`member`, `manager`, `admin`).
 
 #### 7.1.1 Действия пользователя через VK-бота (помимо web-сессии)
 Контур **не заменяет** web-login: пароль и регистрация остаются на сайте. После привязки VK (`user_messenger_links`) бот вызывает эндпоинты с `X-VK-Bot-Secret` + `vk_user_id`; сервер через **`Depends(get_user_for_vk_bot)`** получает того же `User`, что и при сессии в браузере, и применяет те же RBAC-ограничения на уровне сервисов/роутеров.
@@ -198,6 +199,7 @@
 
 ### 7.3 Заявки на выдачу (rental requests; не путать с бронированием)
 - При создании и правке заявки в `pending` суммарное запрошенное количество по каждой позиции не должно превышать текущий `gear.available_count` (иначе 400 с явным текстом ошибки).
+- Тело создания (`POST`, веб и VK integration) содержит `target_manager_id` (`users.id` активного `manager` или `admin`); при `PATCH` в `pending` поле можно сменить с той же валидацией.
 - `GET /api/rental-requests` — список заявок текущего пользователя (опционально `status`, `sort_order`).
 - `POST /api/rental-requests`
 - `PATCH /api/rental-requests/{id}` (изменение состава/полей пока `pending`)

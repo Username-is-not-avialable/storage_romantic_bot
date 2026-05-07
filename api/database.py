@@ -218,6 +218,8 @@ class RentalRequest(Base):
 
     deposit_document = Column(String(300), nullable=True)
 
+    target_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     # Поля решения менеджера (для выборок и отображения)
     decision_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     decision_comment = Column(String(300), nullable=True)

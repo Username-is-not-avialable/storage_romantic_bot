@@ -172,6 +172,23 @@ async def test_complete_conflict_second_site_user_same_vk_id(test_db_session: As
         assert r_retry_other_vk.status_code == 200
 
 
+async def _seed_manager_user_plain(session: AsyncSession, *, email: str) -> User:
+    """Активный завснар без привязки VK (как target_manager_id в тестах VK API)."""
+
+    suffix = abs(hash(email)) % 10_000_000
+    mgr = User(
+        email=email,
+        password_hash=hash_password("t"),
+        full_name="Plain Manager",
+        phone=f"+79{suffix:09d}"[:16],
+        role="manager",
+    )
+    session.add(mgr)
+    await session.commit()
+    await session.refresh(mgr)
+    return mgr
+
+
 async def _seed_member_with_vk_and_gear(
     session: AsyncSession, *, vk_user_id: int
 ) -> tuple[User, Gear]:
@@ -265,6 +282,7 @@ async def _seed_manager_with_vk_and_gear(
 async def test_vk_create_rental_request_success(test_db_session):
     vk_id = 600_001
     _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_id)
+    target = await _seed_manager_user_plain(test_db_session, email="vk_target_ok@example.com")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.post(
@@ -276,6 +294,7 @@ async def test_vk_create_rental_request_success(test_db_session):
                 "event": "TripVK",
                 "comment": "via bot",
                 "deposit_document": "d.pdf",
+                "target_manager_id": target.id,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -290,7 +309,7 @@ async def test_vk_create_rental_request_success(test_db_session):
 @pytest.mark.asyncio
 async def test_vk_manager_can_create_rental_request(test_db_session):
     vk_id = 600_004
-    _, gear = await _seed_manager_with_vk_and_gear(test_db_session, vk_user_id=vk_id)
+    mgr_user, gear = await _seed_manager_with_vk_and_gear(test_db_session, vk_user_id=vk_id)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.post(
@@ -302,6 +321,7 @@ async def test_vk_manager_can_create_rental_request(test_db_session):
                 "event": "Mgr via bot",
                 "comment": "m",
                 "deposit_document": "m.pdf",
+                "target_manager_id": mgr_user.id,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -313,7 +333,8 @@ async def test_vk_manager_can_create_rental_request(test_db_session):
 
 @pytest.mark.asyncio
 async def test_vk_integration_requires_secret_on_new_routes(test_db_session):
-    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_002)
+    _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_002)
+    target = await _seed_manager_user_plain(test_db_session, email="vk_secret_tgt@example.com")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         r_no = await ac.post(
@@ -322,7 +343,8 @@ async def test_vk_integration_requires_secret_on_new_routes(test_db_session):
             json={
                 "due_date": "02.04.2026",
                 "event": "x",
-                "items": [{"gear_id": 1, "qty_requested": 1}],
+                "target_manager_id": target.id,
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
         assert r_no.status_code == 401
@@ -334,7 +356,8 @@ async def test_vk_integration_requires_secret_on_new_routes(test_db_session):
             json={
                 "due_date": "02.04.2026",
                 "event": "x",
-                "items": [{"gear_id": 1, "qty_requested": 1}],
+                "target_manager_id": target.id,
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
         assert r_bad.status_code == 401
@@ -343,7 +366,8 @@ async def test_vk_integration_requires_secret_on_new_routes(test_db_session):
 @pytest.mark.asyncio
 async def test_vk_create_rental_request_404_unlinked(test_db_session):
     """Секрет верный, но vk_user_id не привязан к аккаунту."""
-    await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_003)
+    _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=600_003)
+    target = await _seed_manager_user_plain(test_db_session, email="vk_404unl_tgt@example.com")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.post(
@@ -353,7 +377,8 @@ async def test_vk_create_rental_request_404_unlinked(test_db_session):
             json={
                 "due_date": "02.04.2026",
                 "event": "Nobody",
-                "items": [{"gear_id": 1, "qty_requested": 1}],
+                "target_manager_id": target.id,
+                "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
         assert r.status_code == 404
@@ -365,6 +390,7 @@ async def test_vk_manager_decide_403_when_member_calls_manager_route(
 ):
     vk_member = 600_010
     _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
+    target = await _seed_manager_user_plain(test_db_session, email="vk_dec403_tgt@example.com")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         c = await ac.post(
@@ -374,6 +400,8 @@ async def test_vk_manager_decide_403_when_member_calls_manager_route(
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
+                "deposit_document": "d.pdf",
+                "target_manager_id": target.id,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -394,7 +422,7 @@ async def test_vk_manager_decide_reject_success(test_db_session):
     vk_member = 600_020
     vk_mgr = 600_021
     _, gear = await _seed_member_with_vk_and_gear(test_db_session, vk_user_id=vk_member)
-    await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
+    mgr = await _seed_manager_with_vk(test_db_session, vk_user_id=vk_mgr)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -405,6 +433,8 @@ async def test_vk_manager_decide_reject_success(test_db_session):
             json={
                 "due_date": "02.04.2026",
                 "event": "Trip",
+                "deposit_document": "d.pdf",
+                "target_manager_id": mgr.id,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )

@@ -91,9 +91,9 @@ async def test_member_can_list_managers_for_web(test_db_session: AsyncSession):
     assert resp.status_code == 200
     data = resp.json()
     assert "managers" in data
-    assert len(data["managers"]) == 1
-    assert data["managers"][0]["id"]
-    assert data["managers"][0]["full_name"] == "Manager"
+    assert len(data["managers"]) == 2
+    names = {m["full_name"] for m in data["managers"]}
+    assert names == {"Manager", "Admin"}
 
 
 @pytest.mark.asyncio

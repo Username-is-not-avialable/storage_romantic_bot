@@ -205,6 +205,7 @@ async def seed_if_needed(*, force: bool) -> None:
             event="Ледолазание (заявка)",
             comment="Тестовая заявка из seed",
             deposit_document="scan_zalog.pdf",
+            target_manager_id=manager.id,
             items=[
                 {"gear_id": g0.id, "qty_requested": 1},
                 {"gear_id": g2.id, "qty_requested": 1},

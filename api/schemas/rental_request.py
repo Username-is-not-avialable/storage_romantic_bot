@@ -52,6 +52,7 @@ class RentalRequestBase(BaseModel):
 
 
 class RentalRequestCreate(RentalRequestBase):
+    target_manager_id: int = Field(..., json_schema_extra={"example": 2})
     items: list[RentalRequestItemCreate]
 
 
@@ -60,6 +61,7 @@ class RentalRequestUpdate(BaseModel):
     event: str | None = Field(None, min_length=1, max_length=100)
     comment: str | None = Field(None, max_length=500)
     deposit_document: str | None = Field(None, max_length=300)
+    target_manager_id: int | None = None
     items: list[RentalRequestItemCreate] | None = None
 
     @field_validator("due_date", mode="before")
@@ -84,6 +86,8 @@ class RentalRequestResponse(RentalRequestBase):
 
     id: int
     user_id: int
+    user_full_name: str
+    target_manager_id: int | None
     status: str
     created_at: datetime
     decision_comment: str | None = None

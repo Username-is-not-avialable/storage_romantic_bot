@@ -52,10 +52,18 @@ async def _seed_gear(session: AsyncSession, *, name: str, total: int, available:
     return gear
 
 
+async def _manager_user_id(session: AsyncSession) -> int:
+    res = await session.execute(select(User).where(User.email == "manager@example.com"))
+    mgr = res.scalars().first()
+    assert mgr is not None
+    return mgr.id
+
+
 @pytest.mark.asyncio
 async def test_pending_update_then_reject(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="Tent", total=10, available=10)
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -68,6 +76,7 @@ async def test_pending_update_then_reject(test_db_session: AsyncSession):
                 "event": "Trip",
                 "comment": "c1",
                 "deposit_document": "doc.pdf",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 2}],
             },
         )
@@ -110,6 +119,7 @@ async def test_pending_update_then_reject(test_db_session: AsyncSession):
 async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="Tent2", total=10, available=10)
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -122,6 +132,7 @@ async def test_pending_approve_creates_rentals(test_db_session: AsyncSession):
                 "event": "Trip",
                 "comment": "c1",
                 "deposit_document": "doc.pdf",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 2}],
             },
         )
@@ -181,6 +192,7 @@ async def test_create_rental_request_rejects_qty_above_available(test_db_session
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="TentOver", total=10, available=1)
     gear_id = gear.id
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -193,6 +205,7 @@ async def test_create_rental_request_rejects_qty_above_available(test_db_session
                 "due_date": "02.04.2026",
                 "event": "Trip",
                 "deposit_document": "doc.pdf",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear_id, "qty_requested": 2}],
             },
         )
@@ -229,6 +242,7 @@ async def test_approve_fails_when_insufficient_inventory(test_db_session: AsyncS
                 "due_date": "02.04.2026",
                 "event": "Trip",
                 "deposit_document": "doc.pdf",
+                "target_manager_id": manager.id,
                 "items": [{"gear_id": gear_id, "qty_requested": 2}],
             },
         )
@@ -279,6 +293,7 @@ async def test_manager_queue_supports_filters(
 ):
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="TentQueue", total=10, available=10)
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -289,6 +304,7 @@ async def test_manager_queue_supports_filters(
             json={
                 "due_date": "10.04.2026",
                 "event": "Later trip",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -300,6 +316,7 @@ async def test_manager_queue_supports_filters(
             json={
                 "due_date": "03.04.2026",
                 "event": "Urgent trip",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -331,6 +348,7 @@ async def test_manager_can_create_and_update_rental_request(
 ):
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="MgrTent", total=10, available=10)
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -347,6 +365,7 @@ async def test_manager_can_create_and_update_rental_request(
                 "event": "Mgr trip",
                 "comment": "c1",
                 "deposit_document": "doc.pdf",
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )
@@ -376,6 +395,7 @@ async def test_manager_queue_forbidden_for_member(test_db_session: AsyncSession)
 async def test_member_lists_only_own_rental_requests(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
     gear = await _seed_gear(test_db_session, name="ListTent", total=10, available=10)
+    mid = await _manager_user_id(test_db_session)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -387,6 +407,7 @@ async def test_member_lists_only_own_rental_requests(test_db_session: AsyncSessi
                 "event": "Trip",
                 "comment": None,
                 "deposit_document": None,
+                "target_manager_id": mid,
                 "items": [{"gear_id": gear.id, "qty_requested": 1}],
             },
         )

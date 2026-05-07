@@ -7,7 +7,7 @@ from datetime import date
 from sqlalchemy import Select, asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.database import Gear, Rental, RentalRequest, RentalRequestItem
+from api.database import Gear, Rental, RentalRequest, RentalRequestItem, User
 from api.services.rentals import issue_rental
 
 
@@ -76,6 +76,22 @@ def build_manager_rental_requests_query(
     return q
 
 
+async def assert_valid_rental_target_manager(
+    session: AsyncSession,
+    target_manager_id: int,
+) -> None:
+    """Проверяет, что адресат заявки — активный менеджер или администратор."""
+
+    result = await session.execute(select(User).where(User.id == target_manager_id))
+    user = result.scalars().first()
+    if user is None:
+        raise ValueError("Указанный завснар не найден")
+    if not user.is_active:
+        raise ValueError("Указанный завснар неактивен")
+    if user.role not in ("manager", "admin"):
+        raise ValueError("Адресат заявки должен иметь роль завснара или администратора")
+
+
 async def create_rental_request(
     *,
     session: AsyncSession,
@@ -84,6 +100,7 @@ async def create_rental_request(
     event: str,
     comment: str | None,
     deposit_document: str | None,
+    target_manager_id: int,
     items: Iterable[dict],
 ) -> RentalRequest:
     """
@@ -105,12 +122,15 @@ async def create_rental_request(
 
     _validate_request_items_vs_available(items_list, gears)
 
+    await assert_valid_rental_target_manager(session, target_manager_id)
+
     rental_request = RentalRequest(
         user_id=user_id,
         due_date=due_date,
         event=event,
         comment=comment,
         deposit_document=deposit_document,
+        target_manager_id=target_manager_id,
         status="pending",
     )
     session.add(rental_request)

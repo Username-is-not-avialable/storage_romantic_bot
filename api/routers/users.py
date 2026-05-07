@@ -20,11 +20,14 @@ async def list_managers_for_web(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: User = Depends(require_rental_request_submitter()),
 ):
-    """Список активных завснаров (роль `manager`) — для веб-форм вроде `target_manager_id`."""
+    """Список активных завснаров (`manager` и `admin`) для веб-форм и выбора адресата заявки."""
 
     result = await db.execute(
         select(User)
-        .where(User.role == "manager", User.is_active.is_(True))
+        .where(
+            User.role.in_(("manager", "admin")),
+            User.is_active.is_(True),
+        )
         .order_by(User.id.asc())
     )
     managers = result.scalars().all()

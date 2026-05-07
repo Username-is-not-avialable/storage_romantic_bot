@@ -262,7 +262,7 @@ def handle_issue_text(
                 return
             st.issue_deposit = raw
         st.step = ISSUE_MANAGER
-        lines = ["Шаг 6: кому адресовать заявку (ответят все завснары с привязкой VK). Выберите номер:"]
+        lines = ["Шаг 6: выберите завснара, которому уйдёт заявка (уведомление в VK только ему). Номер из списка:"]
         for i, m in enumerate(st.issue_managers, start=1):
             lines.append(f"{i}. {m.get('full_name')} ({m.get('role')})")
         send_peer(vk, peer_id=peer_id, text="\n".join(lines))
@@ -303,6 +303,7 @@ def handle_issue_text(
             "comment": comment,
             "deposit_document": st.issue_deposit,
             "items": items_payload,
+            "target_manager_id": int(st.issue_target_manager_user_id or 0),
         }
         sc, sbody = api.post_rental_request(vk_user_id=from_id, body=body)
         if sc not in (200, 201):
@@ -322,8 +323,8 @@ def handle_issue_text(
             peer_id=peer_id,
             text=(
                 f"Заявка №{req_id} отправлена (ожидает решения).\n"
-                f"Вы указали адресата: {mgr_name or st.issue_target_manager_user_id}.\n"
-                "Завснары получат уведомление в VK."
+                f"Адресат: {mgr_name or st.issue_target_manager_user_id}.\n"
+                "Ему придёт уведомление в VK."
             ),
         )
 
@@ -344,27 +345,31 @@ def handle_issue_text(
             accept_payload=callback_payload_rental_decide(req_id, True),
             reject_payload=callback_payload_rental_decide(req_id, False),
         )
-        sent_any = False
-        seen_vk: set[int] = set()
+
+        target_vk: int | None = None
         for m in st.issue_managers:
-            vk_uid = m.get("vk_user_id")
-            if vk_uid is None:
-                continue
-            iv = int(vk_uid)
-            if iv in seen_vk:
-                continue
-            seen_vk.add(iv)
-            try:
-                send_peer(vk, peer_id=iv, text=notify_text, keyboard=kb)
-                sent_any = True
-            except Exception as exc:
-                log.warning("notify manager vk=%s failed: %s", iv, exc)
-        if not sent_any:
+            if int(m["user_id"]) == int(st.issue_target_manager_user_id or 0):
+                v = m.get("vk_user_id")
+                if v is not None:
+                    target_vk = int(v)
+                break
+
+        if target_vk is None:
             send_peer(
                 vk,
                 peer_id=peer_id,
-                text="Заявка создана, но отправить уведомление завснарам не удалось.",
+                text="Заявка создана, но у выбранного завснара нет привязки VK — уведомление не отправлено.",
             )
+        else:
+            try:
+                send_peer(vk, peer_id=target_vk, text=notify_text, keyboard=kb)
+            except Exception as exc:
+                log.warning("notify target manager vk=%s failed: %s", target_vk, exc)
+                send_peer(
+                    vk,
+                    peer_id=peer_id,
+                    text="Заявка создана, но отправить уведомление в VK не удалось.",
+                )
 
         st.flow = None
         st.step = None
