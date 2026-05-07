@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from api.dependencies import get_current_user
-from api.schemas.user import UserCreate, UserResponse, UserUpdate
+from api.dependencies import get_current_user, require_rental_request_submitter
+from api.schemas.user import (
+    ManagerList,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+)
 from api.database import User, get_db
 from api.services.auth import hash_password
 from sqlalchemy import select
@@ -8,6 +13,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
+
+
+@router.get("/managers", response_model=ManagerList)
+async def list_managers_for_web(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: User = Depends(require_rental_request_submitter()),
+):
+    """Список активных завснаров (роль `manager`) — для веб-форм вроде `target_manager_id`."""
+
+    result = await db.execute(
+        select(User)
+        .where(User.role == "manager", User.is_active.is_(True))
+        .order_by(User.id.asc())
+    )
+    managers = result.scalars().all()
+    return ManagerList(managers=managers)
+
 
 @router.post("/", response_model=UserResponse)
 async def add_user(

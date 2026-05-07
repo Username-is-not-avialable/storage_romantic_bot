@@ -182,6 +182,7 @@
 - `POST /api/auth/request-code`
 - `POST /api/auth/verify-code`
 - `GET /api/auth/me`
+- `GET /api/users/managers` — справочник активных завснаров (`manager`) для веб-форм (`id`, `full_name`); доступ с cookie-сессией для ролей, оформляющих заявки на выдачу/возврат (`member`, `manager`, `admin`).
 
 #### 7.1.1 Действия пользователя через VK-бота (помимо web-сессии)
 Контур **не заменяет** web-login: пароль и регистрация остаются на сайте. После привязки VK (`user_messenger_links`) бот вызывает эндпоинты с `X-VK-Bot-Secret` + `vk_user_id`; сервер через **`Depends(get_user_for_vk_bot)`** получает того же `User`, что и при сессии в браузере, и применяет те же RBAC-ограничения на уровне сервисов/роутеров.

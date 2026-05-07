@@ -32,6 +32,19 @@ class UserList(BaseModel):
     users: list[UserResponse]
 
 
+class ManagerPublicRef(BaseModel):
+    """Краткая карточка завснара для выбора в формах (без email/телефона)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    full_name: str
+
+
+class ManagerList(BaseModel):
+    managers: list[ManagerPublicRef]
+
+
 class UserUpdate(BaseModel):
     """Схема для обновления данных пользователя"""
     full_name: str | None = Field(None, min_length=1, max_length=100)

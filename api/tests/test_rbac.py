@@ -77,6 +77,26 @@ async def test_manager_can_create_gear(test_db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_member_can_list_managers_for_web(test_db_session: AsyncSession):
+    await _seed_users(test_db_session)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        anon = await ac.get("/api/users/managers")
+        assert anon.status_code == 401
+
+        login = await ac.post("/api/auth/login", json={"email": "member@example.com", "password": "memberpass"})
+        assert login.status_code == 200
+        resp = await ac.get("/api/users/managers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "managers" in data
+    assert len(data["managers"]) == 1
+    assert data["managers"][0]["id"]
+    assert data["managers"][0]["full_name"] == "Manager"
+
+
+@pytest.mark.asyncio
 async def test_member_cannot_list_admin_users(test_db_session: AsyncSession):
     await _seed_users(test_db_session)
 
