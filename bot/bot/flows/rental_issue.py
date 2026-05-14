@@ -73,7 +73,7 @@ def _issue_show_gear_results(
     for it in items:
         gid = int(it["id"])
         st.issue_gear_labels[gid] = str(it.get("name") or f"id {gid}")
-    lines = [f"Результаты по запросу «{raw_query}». Нажимайте +/- у каждой позиции:"]
+    lines = [f"Результаты по запросу «{raw_query}»."]
     send_peer(vk, peer_id=peer_id, text="\n".join(lines))
     st.issue_gear_message_ids.clear()
     for i, it in enumerate(items, start=1):
@@ -88,8 +88,12 @@ def _issue_show_gear_results(
         if cmid is not None:
             st.issue_gear_message_ids[gid] = cmid
 
-    cart_text = "Текущая корзина:\n" + _cart_summary(st)
-    st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text, keyboard=keyboard_issue_actions())
+    st.issue_cart_message_id = None
+    if st.issue_cart:
+        cart_text = "Текущая корзина:\n" + _cart_summary(st)
+        st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text, keyboard=keyboard_issue_actions())
+    else:
+        send_peer(vk, peer_id=peer_id, text=" ", keyboard=keyboard_issue_actions())
     st.step = ISSUE_ADD
 
 

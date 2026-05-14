@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
 import vk_api
 
 from bot.api_client import IntegrationClient, format_api_error
-from bot.flows.rental_issue import _cart_summary
 from bot.flows.notifications import rental_decision_member_text, return_decision_member_text
 from bot.notify_registry import rental_applicant_peer, return_applicant_peer
 from bot.state import get_state
 from bot.vk_send import ack_message_event, send_peer, try_edit_remove_keyboard
-
-log = logging.getLogger(__name__)
-
 
 def _parse_payload(payload_raw: Any) -> dict[str, Any]:
     if payload_raw is None:
@@ -72,37 +67,7 @@ def handle_message_event(
         st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
         if new_qty > 0:
             st.issue_cart.append((gear_id, new_qty))
-        warnings: list[str] = []
-        if st.issue_cart_message_id is not None:
-            try:
-                vk.messages.delete(
-                    peer_id=peer_id,
-                    cmids=st.issue_cart_message_id,
-                    delete_for_all=1,
-                )
-            except Exception:
-                log.exception(
-                    "issue cart delete failed: peer_id=%s cart_cmid=%s",
-                    peer_id,
-                    st.issue_cart_message_id,
-                )
-                warnings.append("не удалось удалить старую корзину")
-        try:
-            st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text="Текущая корзина:\n" + _cart_summary(st))
-        except Exception:
-            log.exception("issue cart send failed: peer_id=%s", peer_id)
-            warnings.append("не удалось отправить новую корзину")
-
-        if warnings:
-            ack_message_event(
-                vk,
-                event_id=event_id,
-                user_id=manager_vk_user_id,
-                peer_id=peer_id,
-                text="Количество изменено, но есть ошибка.",
-            )
-        else:
-            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
         return
     try:
         req_id = int(payload["i"])
