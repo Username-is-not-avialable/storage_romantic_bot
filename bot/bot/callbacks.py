@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import vk_api
@@ -11,6 +12,8 @@ from bot.flows.notifications import rental_decision_member_text, return_decision
 from bot.notify_registry import rental_applicant_peer, return_applicant_peer
 from bot.state import get_state
 from bot.vk_send import ack_message_event, inline_keyboard_issue_qty, send_peer, try_edit_remove_keyboard
+
+log = logging.getLogger(__name__)
 
 
 def _parse_payload(payload_raw: Any) -> dict[str, Any]:
@@ -83,6 +86,12 @@ def handle_message_event(
                     ),
                 )
             except Exception:
+                log.exception(
+                    "issue item edit failed: peer_id=%s gear_id=%s cmid=%s",
+                    peer_id,
+                    gear_id,
+                    cmid,
+                )
                 edit_warnings.append("не удалось обновить сообщение позиции")
         if st.issue_cart_message_id is not None:
             try:
@@ -92,6 +101,11 @@ def handle_message_event(
                     message="Текущая корзина:\n" + _cart_summary(st),
                 )
             except Exception:
+                log.exception(
+                    "issue cart edit failed: peer_id=%s cart_cmid=%s",
+                    peer_id,
+                    st.issue_cart_message_id,
+                )
                 edit_warnings.append("не удалось обновить сообщение корзины")
         if edit_warnings:
             ack_message_event(
