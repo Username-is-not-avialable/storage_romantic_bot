@@ -7,11 +7,11 @@ from typing import Any
 import vk_api
 
 from bot.api_client import IntegrationClient, format_api_error
-from bot.flows.rental_issue import _cart_summary, issue_gear_payload
+from bot.flows.rental_issue import _cart_summary
 from bot.flows.notifications import rental_decision_member_text, return_decision_member_text
 from bot.notify_registry import rental_applicant_peer, return_applicant_peer
 from bot.state import get_state
-from bot.vk_send import ack_message_event, inline_keyboard_issue_qty, send_peer, try_edit_remove_keyboard
+from bot.vk_send import ack_message_event, send_peer, try_edit_remove_keyboard
 
 log = logging.getLogger(__name__)
 
@@ -72,48 +72,34 @@ def handle_message_event(
         st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
         if new_qty > 0:
             st.issue_cart.append((gear_id, new_qty))
-        edit_warnings: list[str] = []
-        cmid = st.issue_gear_message_ids.get(gear_id)
-        if cmid is not None:
-            try:
-                vk.messages.edit(
-                    peer_id=peer_id,
-                    conversation_message_id=cmid,
-                    message=f"{gear.get('name')} — свободно {avail}",
-                    keyboard=inline_keyboard_issue_qty(
-                        minus_payload=issue_gear_payload(gear_id=gear_id, delta=-1),
-                        plus_payload=issue_gear_payload(gear_id=gear_id, delta=1),
-                    ),
-                )
-            except Exception:
-                log.exception(
-                    "issue item edit failed: peer_id=%s gear_id=%s cmid=%s",
-                    peer_id,
-                    gear_id,
-                    cmid,
-                )
-                edit_warnings.append("не удалось обновить сообщение позиции")
+        warnings: list[str] = []
         if st.issue_cart_message_id is not None:
             try:
-                vk.messages.edit(
+                vk.messages.delete(
                     peer_id=peer_id,
-                    conversation_message_id=st.issue_cart_message_id,
-                    message="Текущая корзина:\n" + _cart_summary(st),
+                    cmids=st.issue_cart_message_id,
+                    delete_for_all=1,
                 )
             except Exception:
                 log.exception(
-                    "issue cart edit failed: peer_id=%s cart_cmid=%s",
+                    "issue cart delete failed: peer_id=%s cart_cmid=%s",
                     peer_id,
                     st.issue_cart_message_id,
                 )
-                edit_warnings.append("не удалось обновить сообщение корзины")
-        if edit_warnings:
+                warnings.append("не удалось удалить старую корзину")
+        try:
+            st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text="Текущая корзина:\n" + _cart_summary(st))
+        except Exception:
+            log.exception("issue cart send failed: peer_id=%s", peer_id)
+            warnings.append("не удалось отправить новую корзину")
+
+        if warnings:
             ack_message_event(
                 vk,
                 event_id=event_id,
                 user_id=manager_vk_user_id,
                 peer_id=peer_id,
-                text="Количество изменено, но " + "; ".join(edit_warnings) + ".",
+                text="Количество изменено, но есть ошибка.",
             )
         else:
             ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
