@@ -89,14 +89,8 @@ def _issue_show_gear_results(
             st.issue_gear_message_ids[gid] = cmid
 
     cart_text = "Текущая корзина:\n" + _cart_summary(st)
-    st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text)
+    st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text, keyboard=keyboard_issue_actions())
     st.step = ISSUE_ADD
-    send_peer(
-        vk,
-        peer_id=peer_id,
-        text="Для продолжения используйте кнопки ниже: Новый поиск / Посмотреть корзину / Готово.",
-        keyboard=keyboard_issue_actions(),
-    )
 
 
 def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: int, from_id: int) -> None:
