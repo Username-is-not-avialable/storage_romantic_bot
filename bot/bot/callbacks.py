@@ -67,7 +67,16 @@ def handle_message_event(
         st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
         if new_qty > 0:
             st.issue_cart.append((gear_id, new_qty))
-        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
+        gear_name = str(gear.get("name") or f"id {gear_id}")
+        if delta > 0 and cur == 0 and new_qty > 0:
+            snack = f"Позиция «{gear_name}» добавлена в корзину."
+        elif delta > 0:
+            snack = f"Позиция «{gear_name}»: теперь {new_qty} шт. в корзине."
+        elif new_qty == 0:
+            snack = f"Позиция «{gear_name}» удалена из корзины."
+        else:
+            snack = f"Позиция «{gear_name}»: теперь {new_qty} шт. в корзине."
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=snack)
         return
     try:
         req_id = int(payload["i"])

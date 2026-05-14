@@ -114,7 +114,7 @@ def ack_message_event(
             user_id=user_id,
             peer_id=peer_id,
             event_data=json.dumps(
-                {"type": "show_snackbar", "text": text[:255]},
+                {"type": "show_snackbar", "text": text[:90]},
                 ensure_ascii=False,
             ),
         )
