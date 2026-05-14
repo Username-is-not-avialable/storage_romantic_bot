@@ -20,6 +20,8 @@ class DialogState:
     issue_event: str | None = None
     issue_due: str | None = None  # дд.мм.гггг
     issue_deposit: str | None = None
+    issue_gear_message_ids: dict[int, int] = field(default_factory=dict)  # gear_id -> conversation_message_id
+    issue_cart_message_id: int | None = None
 
     # возврат
     return_rentals: list[dict[str, Any]] = field(default_factory=list)

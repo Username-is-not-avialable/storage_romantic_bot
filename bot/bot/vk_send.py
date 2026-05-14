@@ -73,6 +73,28 @@ def inline_keyboard_two_actions(
     return kb.get_keyboard()
 
 
+def inline_keyboard_issue_qty(
+    *,
+    plus_payload: str | dict[str, Any],
+    minus_payload: str | dict[str, Any],
+    qty_label: str,
+) -> str:
+    kb = VkKeyboard(inline=True)
+    kb.add_callback_button("−", color=VkKeyboardColor.SECONDARY, payload=minus_payload)
+    kb.add_callback_button(qty_label[:40], color=VkKeyboardColor.PRIMARY, payload={"t": "noop"})
+    kb.add_callback_button("+", color=VkKeyboardColor.POSITIVE, payload=plus_payload)
+    return kb.get_keyboard()
+
+
+def keyboard_issue_actions() -> str:
+    kb = VkKeyboard(inline=False, one_time=False)
+    kb.add_button("Новый поиск", color=VkKeyboardColor.PRIMARY)
+    kb.add_button("Посмотреть корзину", color=VkKeyboardColor.SECONDARY)
+    kb.add_line()
+    kb.add_button("Готово", color=VkKeyboardColor.POSITIVE)
+    return kb.get_keyboard()
+
+
 def empty_keyboard() -> str:
     return VkKeyboard.get_empty_keyboard()
 

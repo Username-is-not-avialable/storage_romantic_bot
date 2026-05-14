@@ -6,9 +6,11 @@ from typing import Any
 import vk_api
 
 from bot.api_client import IntegrationClient, format_api_error
+from bot.flows.rental_issue import _cart_summary, issue_gear_payload
 from bot.flows.notifications import rental_decision_member_text, return_decision_member_text
 from bot.notify_registry import rental_applicant_peer, return_applicant_peer
-from bot.vk_send import ack_message_event, send_peer, try_edit_remove_keyboard
+from bot.state import get_state
+from bot.vk_send import ack_message_event, inline_keyboard_issue_qty, send_peer, try_edit_remove_keyboard
 
 
 def _parse_payload(payload_raw: Any) -> dict[str, Any]:
@@ -41,6 +43,52 @@ def handle_message_event(
     payload = _parse_payload(obj.get("payload"))
 
     kind = str(payload.get("t") or "")
+    if kind == "ig":
+        st = get_state(peer_id)
+        if st.flow != "issue" or st.step != "issue_add":
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Сценарий не активен.")
+            return
+        try:
+            gear_id = int(payload["g"])
+            delta = int(payload["d"])
+        except (KeyError, TypeError, ValueError):
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Некорректная кнопка.")
+            return
+        gear = next((x for x in st.issue_gear_results if int(x["id"]) == gear_id), None)
+        if gear is None:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Позиция не найдена.")
+            return
+        avail = int(gear.get("available_count") or 0)
+        cur = sum(q for gid, q in st.issue_cart if gid == gear_id)
+        new_qty = cur + delta
+        if new_qty < 0:
+            new_qty = 0
+        if new_qty > avail:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=f"Доступно только {avail}.")
+            return
+        st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
+        if new_qty > 0:
+            st.issue_cart.append((gear_id, new_qty))
+        cmid = st.issue_gear_message_ids.get(gear_id)
+        if cmid is not None:
+            vk.messages.edit(
+                peer_id=peer_id,
+                conversation_message_id=cmid,
+                message=f"{gear.get('name')} — свободно {avail}\nВ корзине: {new_qty}",
+                keyboard=inline_keyboard_issue_qty(
+                    minus_payload=issue_gear_payload(gear_id=gear_id, delta=-1),
+                    plus_payload=issue_gear_payload(gear_id=gear_id, delta=1),
+                    qty_label=str(new_qty),
+                ),
+            )
+        if st.issue_cart_message_id is not None:
+            vk.messages.edit(
+                peer_id=peer_id,
+                conversation_message_id=st.issue_cart_message_id,
+                message="Текущая корзина:\n" + _cart_summary(st),
+            )
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
+        return
     try:
         req_id = int(payload["i"])
     except (KeyError, TypeError, ValueError):
