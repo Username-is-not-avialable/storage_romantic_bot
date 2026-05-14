@@ -69,25 +69,41 @@ def handle_message_event(
         st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
         if new_qty > 0:
             st.issue_cart.append((gear_id, new_qty))
+        edit_warnings: list[str] = []
         cmid = st.issue_gear_message_ids.get(gear_id)
         if cmid is not None:
-            vk.messages.edit(
-                peer_id=peer_id,
-                conversation_message_id=cmid,
-                message=f"{gear.get('name')} — свободно {avail}\nВ корзине: {new_qty}",
-                keyboard=inline_keyboard_issue_qty(
-                    minus_payload=issue_gear_payload(gear_id=gear_id, delta=-1),
-                    plus_payload=issue_gear_payload(gear_id=gear_id, delta=1),
-                    qty_label=str(new_qty),
-                ),
-            )
+            try:
+                vk.messages.edit(
+                    peer_id=peer_id,
+                    conversation_message_id=cmid,
+                    message=f"{gear.get('name')} — свободно {avail}\nВ корзине: {new_qty}",
+                    keyboard=inline_keyboard_issue_qty(
+                        minus_payload=issue_gear_payload(gear_id=gear_id, delta=-1),
+                        plus_payload=issue_gear_payload(gear_id=gear_id, delta=1),
+                        qty_label=str(new_qty),
+                    ),
+                )
+            except Exception:
+                edit_warnings.append("не удалось обновить сообщение позиции")
         if st.issue_cart_message_id is not None:
-            vk.messages.edit(
+            try:
+                vk.messages.edit(
+                    peer_id=peer_id,
+                    conversation_message_id=st.issue_cart_message_id,
+                    message="Текущая корзина:\n" + _cart_summary(st),
+                )
+            except Exception:
+                edit_warnings.append("не удалось обновить сообщение корзины")
+        if edit_warnings:
+            ack_message_event(
+                vk,
+                event_id=event_id,
+                user_id=manager_vk_user_id,
                 peer_id=peer_id,
-                conversation_message_id=st.issue_cart_message_id,
-                message="Текущая корзина:\n" + _cart_summary(st),
+                text="Количество изменено, но " + "; ".join(edit_warnings) + ".",
             )
-        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
+        else:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Обновлено.")
         return
     try:
         req_id = int(payload["i"])
