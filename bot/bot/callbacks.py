@@ -76,11 +76,10 @@ def handle_message_event(
                 vk.messages.edit(
                     peer_id=peer_id,
                     conversation_message_id=cmid,
-                    message=f"{gear.get('name')} — свободно {avail}\nВ корзине: {new_qty}",
+                    message=f"{gear.get('name')} — свободно {avail}",
                     keyboard=inline_keyboard_issue_qty(
                         minus_payload=issue_gear_payload(gear_id=gear_id, delta=-1),
                         plus_payload=issue_gear_payload(gear_id=gear_id, delta=1),
-                        qty_label=str(new_qty),
                     ),
                 )
             except Exception:

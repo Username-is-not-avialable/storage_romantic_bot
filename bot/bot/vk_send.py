@@ -77,11 +77,9 @@ def inline_keyboard_issue_qty(
     *,
     plus_payload: str | dict[str, Any],
     minus_payload: str | dict[str, Any],
-    qty_label: str,
 ) -> str:
     kb = VkKeyboard(inline=True)
     kb.add_callback_button("−", color=VkKeyboardColor.SECONDARY, payload=minus_payload)
-    kb.add_callback_button(qty_label[:40], color=VkKeyboardColor.PRIMARY, payload={"t": "noop"})
     kb.add_callback_button("+", color=VkKeyboardColor.POSITIVE, payload=plus_payload)
     return kb.get_keyboard()
 

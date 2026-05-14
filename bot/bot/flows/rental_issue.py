@@ -50,14 +50,6 @@ def _cart_summary(st: DialogState) -> str:
     return "\n".join(lines) if lines else "(пусто)"
 
 
-def _cart_qty_for(st: DialogState, gear_id: int) -> int:
-    total = 0
-    for gid, q in st.issue_cart:
-        if gid == gear_id:
-            total += q
-    return total
-
-
 def issue_gear_payload(*, gear_id: int, delta: int) -> dict[str, Any]:
     return {"t": "ig", "g": int(gear_id), "d": int(delta)}
 
@@ -81,17 +73,16 @@ def _issue_show_gear_results(
     for it in items:
         gid = int(it["id"])
         st.issue_gear_labels[gid] = str(it.get("name") or f"id {gid}")
-    st.issue_gear_message_ids.clear()
     lines = [f"Результаты по запросу «{raw_query}». Нажимайте +/- у каждой позиции:"]
+    send_peer(vk, peer_id=peer_id, text="\n".join(lines))
+    st.issue_gear_message_ids.clear()
     for i, it in enumerate(items, start=1):
         gid = int(it["id"])
         avail = int(it.get("available_count") or 0)
-        qty = _cart_qty_for(st, gid)
-        text = f"{i}. {it.get('name')} — свободно {avail}\nВ корзине: {qty}"
+        text = f"{i}. {it.get('name')} — свободно {avail}"
         kb = inline_keyboard_issue_qty(
             minus_payload=issue_gear_payload(gear_id=gid, delta=-1),
             plus_payload=issue_gear_payload(gear_id=gid, delta=1),
-            qty_label=f"{qty}",
         )
         cmid = send_peer(vk, peer_id=peer_id, text=text, keyboard=kb)
         if cmid is not None:
@@ -99,9 +90,13 @@ def _issue_show_gear_results(
 
     cart_text = "Текущая корзина:\n" + _cart_summary(st)
     st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text)
-    lines.append("Для продолжения используйте кнопки ниже: Новый поиск / Посмотреть корзину / Готово.")
     st.step = ISSUE_ADD
-    send_peer(vk, peer_id=peer_id, text="\n".join(lines), keyboard=keyboard_issue_actions())
+    send_peer(
+        vk,
+        peer_id=peer_id,
+        text="Для продолжения используйте кнопки ниже: Новый поиск / Посмотреть корзину / Готово.",
+        keyboard=keyboard_issue_actions(),
+    )
 
 
 def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: int, from_id: int) -> None:
