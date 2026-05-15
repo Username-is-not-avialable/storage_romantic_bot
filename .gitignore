@@ -259,3 +259,6 @@ __marimo__/
 .cursor/rules/db-connection.mdc
 api/token.json
 api/credentials.json
+
+#to prevent ignoring web/lib folder
+!web/src/lib/
