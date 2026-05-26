@@ -78,6 +78,39 @@ def handle_message_event(
             snack = f"Позиция «{gear_name}»: теперь {new_qty} шт. в корзине."
         ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=snack)
         return
+    if kind == "rg":
+        st = get_state(peer_id)
+        if st.flow != "return" or st.step != "return_items":
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Сценарий не активен.")
+            return
+        try:
+            gear_id = int(payload["g"])
+            delta = int(payload["d"])
+        except (KeyError, TypeError, ValueError):
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Некорректная кнопка.")
+            return
+        line = next((x for x in st.return_lines if int(x["gear_id"]) == gear_id), None)
+        if line is None:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Позиция не найдена.")
+            return
+        limit = int(line.get("qty_outstanding") or 0)
+        cur = sum(q for gid, q in st.return_cart if gid == gear_id)
+        new_qty = max(0, cur + delta)
+        if new_qty > limit:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=f"Доступно только {limit}.")
+            return
+        st.return_cart = [(gid, q) for gid, q in st.return_cart if gid != gear_id]
+        if new_qty > 0:
+            st.return_cart.append((gear_id, new_qty))
+        name = str(line.get("gear_name") or f"id {gear_id}")
+        if delta > 0 and cur == 0:
+            snack = f"Позиция «{name}» добавлена."
+        elif new_qty == 0:
+            snack = f"Позиция «{name}» убрана."
+        else:
+            snack = f"Позиция «{name}»: {new_qty} шт."
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=snack)
+        return
     try:
         req_id = int(payload["i"])
     except (KeyError, TypeError, ValueError):

@@ -29,6 +29,7 @@ class DialogState:
     return_lines: list[dict[str, Any]] = field(default_factory=list)
     return_cart: list[tuple[int, int]] = field(default_factory=list)  # gear_id, qty_return
     return_managers: list[dict[str, Any]] = field(default_factory=list)
+    return_item_message_ids: dict[int, int] = field(default_factory=dict)  # gear_id -> conversation_message_id
 
 
 _states: dict[int, DialogState] = {}

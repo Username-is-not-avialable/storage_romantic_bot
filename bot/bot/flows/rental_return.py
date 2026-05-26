@@ -8,7 +8,13 @@ import vk_api
 from bot.api_client import IntegrationClient, format_api_error
 from bot.notify_registry import return_applicant_peer
 from bot.state import DialogState, get_state
-from bot.vk_send import empty_keyboard, inline_keyboard_two_actions, send_peer
+from bot.vk_send import (
+    empty_keyboard,
+    inline_keyboard_issue_qty,
+    inline_keyboard_two_actions,
+    keyboard_return_actions,
+    send_peer,
+)
 
 from .notifications import callback_payload_return_decide, format_return_notification
 
@@ -19,6 +25,10 @@ RETURN_PICK_ITEMS = "return_items"
 RETURN_PICK_MANAGER = "return_manager"
 
 _DONE = frozenset({"готово", "done", "далее"})
+
+
+def return_gear_payload(*, gear_id: int, delta: int) -> dict[str, Any]:
+    return {"t": "rg", "g": int(gear_id), "d": int(delta)}
 
 
 def _merge_return_cart(cart: list[tuple[int, int]]) -> list[dict[str, int]]:
@@ -125,19 +135,38 @@ def handle_return_text(
         if not items:
             send_peer(vk, peer_id=peer_id, text="В этой аренде нет позиций для возврата.")
             return
-        lines = [f"Аренда №{st.return_rental_id}: введите номер и количество через пробел, либо «готово», если всё выбрали."]
-   
+        lines = [f"Аренда №{st.return_rental_id}: выберите позиции для сдачи кнопками +/-."]
+        send_peer(vk, peer_id=peer_id, text="\n".join(lines), keyboard=keyboard_return_actions())
+        st.return_item_message_ids.clear()
         for i, it in enumerate(items, start=1):
             gid = it.get("gear_id")
             nm = it.get("gear_name", "")
             out = it.get("qty_outstanding", 0)
-            lines.append(f"{i}. {nm} (gear_id {gid}) — к возврату до {out} шт.")
-        lines.append("Когда выбрано всё — напишите «готово».")
+            text = f"{i}. {nm} — к возврату до {out} шт."
+            cmid = send_peer(
+                vk,
+                peer_id=peer_id,
+                text=text,
+                keyboard=inline_keyboard_issue_qty(
+                    minus_payload=return_gear_payload(gear_id=int(gid), delta=-1),
+                    plus_payload=return_gear_payload(gear_id=int(gid), delta=1),
+                ),
+            )
+            if cmid is not None:
+                st.return_item_message_ids[int(gid)] = cmid
         st.step = RETURN_PICK_ITEMS
-        send_peer(vk, peer_id=peer_id, text="\n".join(lines))
         return
 
     if st.step == RETURN_PICK_ITEMS:
+        if low in {"выбрать все", "all"}:
+            st.return_cart = []
+            for it in st.return_lines:
+                gid = int(it["gear_id"])
+                out = int(it.get("qty_outstanding") or 0)
+                if out > 0:
+                    st.return_cart.append((gid, out))
+            send_peer(vk, peer_id=peer_id, text="Выбраны все доступные позиции.", keyboard=keyboard_return_actions())
+            return
         if low in _DONE:
             if not st.return_cart:
                 send_peer(vk, peer_id=peer_id, text="Выберите хотя бы одну позицию.")
@@ -148,39 +177,7 @@ def handle_return_text(
                 mlines.append(f"{i}. {m.get('full_name')} ({m.get('role')})")
             send_peer(vk, peer_id=peer_id, text="\n".join(mlines))
             return
-        parts = raw.split()
-        if len(parts) != 2:
-            send_peer(vk, peer_id=peer_id, text="Формат: номер_строки количество (например: 1 1).")
-            return
-        try:
-            idx = int(parts[0])
-            qty = int(parts[1])
-        except ValueError:
-            send_peer(vk, peer_id=peer_id, text="Ожидаются два целых числа.")
-            return
-        if idx < 1 or idx > len(st.return_lines):
-            send_peer(vk, peer_id=peer_id, text="Номер строки не из списка.")
-            return
-        if qty <= 0:
-            send_peer(vk, peer_id=peer_id, text="Количество должно быть больше нуля.")
-            return
-        line = st.return_lines[idx - 1]
-        gid = int(line["gear_id"])
-        max_q = int(line.get("qty_outstanding") or 0)
-        already = sum(q for g, q in st.return_cart if g == gid)
-        if already + qty > max_q:
-            send_peer(
-                vk,
-                peer_id=peer_id,
-                text=f"Слишком много для этой позиции (максимум к возврату {max_q}, уже в черновике {already}).",
-            )
-            return
-        st.return_cart.append((gid, qty))
-        send_peer(
-            vk,
-            peer_id=peer_id,
-            text=("Добавлено.\nЧерновик возврата:\n" + _return_cart_summary(st) + "\n\nЕщё позиции или «готово»."),
-        )
+        send_peer(vk, peer_id=peer_id, text="Используйте кнопки +/- у позиций или «Выбрать все»/«Готово».", keyboard=keyboard_return_actions())
         return
 
     if st.step == RETURN_PICK_MANAGER:
