@@ -175,7 +175,7 @@ def handle_return_text(
             mlines = ["Кому сдавать (target_manager_id). Выберите номер завснара:"]
             for i, m in enumerate(st.return_managers, start=1):
                 mlines.append(f"{i}. {m.get('full_name')} ({m.get('role')})")
-            send_peer(vk, peer_id=peer_id, text="\n".join(mlines))
+            send_peer(vk, peer_id=peer_id, text="\n".join(mlines), keyboard=empty_keyboard())
             return
         send_peer(vk, peer_id=peer_id, text="Используйте кнопки +/- у позиций или «Выбрать все»/«Готово».", keyboard=keyboard_return_actions())
         return

@@ -193,6 +193,7 @@ def handle_issue_text(
                 vk,
                 peer_id=peer_id,
                 text=("Корзина:\n" + _cart_summary(st) + "\n\nШаг 3: укажите мероприятие одной строкой (до 100 символов)."),
+                keyboard=empty_keyboard(),
             )
             return
         if len(raw) < 3:
