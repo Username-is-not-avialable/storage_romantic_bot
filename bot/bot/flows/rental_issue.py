@@ -10,6 +10,7 @@ from bot.api_client import IntegrationClient, format_api_error
 from bot.notify_registry import rental_applicant_peer
 from bot.state import DialogState, get_state
 from bot.vk_send import (
+    empty_keyboard,
     inline_keyboard_issue_qty,
     inline_keyboard_two_actions,
     keyboard_issue_actions,
@@ -152,6 +153,7 @@ def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: in
             "Шаг 1: введите не менее 3 символов для поиска снаряжения на складе "
             "(название или часть описания)."
         ),
+        keyboard=empty_keyboard(),
     )
 
 

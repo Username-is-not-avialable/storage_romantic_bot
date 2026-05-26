@@ -8,7 +8,7 @@ from bot.flows.common import LINK_STEP_AWAIT_CODE, help_text, profile_lines
 from bot.flows.rental_issue import handle_issue_text, start_issue_flow
 from bot.flows.rental_return import handle_return_text, start_return_flow
 from bot.state import get_state, reset_state
-from bot.vk_send import send_peer
+from bot.vk_send import empty_keyboard, send_peer
 
 
 def _complete_vk_link(
@@ -59,7 +59,7 @@ def handle_slash(
     arg = parsed.arg
 
     if cmd == "start":
-        send_peer(vk, peer_id=peer_id, text=help_text())
+        send_peer(vk, peer_id=peer_id, text=help_text(), keyboard=empty_keyboard())
         return
 
     if cmd == "link":
@@ -73,24 +73,27 @@ def handle_slash(
             vk,
             peer_id=peer_id,
             text="Пришлите следующим сообщением код привязки с сайта (одной строкой).",
+            keyboard=empty_keyboard(),
         )
         return
 
     if cmd == "profile":
         sc, body = api.me(vk_user_id=from_id)
         if sc == 200:
-            send_peer(vk, peer_id=peer_id, text="\n".join(profile_lines(body)))
+            send_peer(vk, peer_id=peer_id, text="\n".join(profile_lines(body)), keyboard=empty_keyboard())
         elif sc == 404:
             send_peer(
                 vk,
                 peer_id=peer_id,
                 text="Аккаунт VK ещё не привязан. Используйте /link и код с сайта.",
+                keyboard=empty_keyboard(),
             )
         else:
             send_peer(
                 vk,
                 peer_id=peer_id,
                 text=f"Не удалось загрузить профиль ({sc}). {format_api_error(body)}",
+                keyboard=empty_keyboard(),
             )
         return
 
@@ -102,7 +105,7 @@ def handle_slash(
         start_return_flow(vk, api, peer_id, from_id)
         return
 
-    send_peer(vk, peer_id=peer_id, text="Неизвестная команда. /help — справка.")
+    send_peer(vk, peer_id=peer_id, text="Неизвестная команда. /help — справка.", keyboard=empty_keyboard())
 
 
 def handle_plain_text(

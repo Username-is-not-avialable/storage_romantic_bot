@@ -8,7 +8,7 @@ import vk_api
 from bot.api_client import IntegrationClient, format_api_error
 from bot.notify_registry import return_applicant_peer
 from bot.state import DialogState, get_state
-from bot.vk_send import inline_keyboard_two_actions, send_peer
+from bot.vk_send import empty_keyboard, inline_keyboard_two_actions, send_peer
 
 from .notifications import callback_payload_return_decide, format_return_notification
 
@@ -93,7 +93,7 @@ def start_return_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: i
         rid = r.get("id")
         ev = r.get("event", "")
         lines.append(f"{i}. №{rid} — {ev}")
-    send_peer(vk, peer_id=peer_id, text="\n".join(lines))
+    send_peer(vk, peer_id=peer_id, text="\n".join(lines), keyboard=empty_keyboard())
 
 
 def handle_return_text(
