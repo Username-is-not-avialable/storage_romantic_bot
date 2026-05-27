@@ -111,11 +111,19 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
-      <p className="text-center text-xs text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" to="/">
-          На главную
-        </Link>
-      </p>
+      <div className="space-y-2 text-center text-xs text-muted-foreground">
+        <p>
+          Нет аккаунта?{" "}
+          <Link className="underline-offset-4 hover:underline" to="/register">
+            Зарегистрироваться
+          </Link>
+        </p>
+        <p>
+          <Link className="underline-offset-4 hover:underline" to="/">
+            На главную
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
