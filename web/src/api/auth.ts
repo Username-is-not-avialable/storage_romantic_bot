@@ -26,3 +26,18 @@ export async function fetchMeOptional(): Promise<MeUser | null> {
   }
   return (await res.json()) as MeUser;
 }
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  full_name: string;
+  phone: string;
+  document: string | null;
+}
+
+export async function register(payload: RegisterPayload): Promise<void> {
+  await apiJson("/api/users/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
