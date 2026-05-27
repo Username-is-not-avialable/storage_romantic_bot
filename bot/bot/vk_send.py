@@ -96,6 +96,9 @@ def keyboard_issue_actions() -> str:
 def keyboard_return_actions() -> str:
     kb = VkKeyboard(inline=False, one_time=False)
     kb.add_button("Выбрать все", color=VkKeyboardColor.PRIMARY)
+    kb.add_line()
+    kb.add_button("Посмотреть выбранные позиции", color=VkKeyboardColor.SECONDARY)
+    kb.add_line()
     kb.add_button("Готово", color=VkKeyboardColor.POSITIVE)
     return kb.get_keyboard()
 

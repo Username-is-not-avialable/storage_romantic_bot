@@ -167,6 +167,14 @@ def handle_return_text(
                     st.return_cart.append((gid, out))
             send_peer(vk, peer_id=peer_id, text="Выбраны все доступные позиции.", keyboard=keyboard_return_actions())
             return
+        if low in {"посмотреть выбранные позиции", "выбранные позиции"}:
+            send_peer(
+                vk,
+                peer_id=peer_id,
+                text="Выбранные позиции для сдачи:\n" + _return_cart_summary(st),
+                keyboard=keyboard_return_actions(),
+            )
+            return
         if low in _DONE:
             if not st.return_cart:
                 send_peer(vk, peer_id=peer_id, text="Выберите хотя бы одну позицию.")
