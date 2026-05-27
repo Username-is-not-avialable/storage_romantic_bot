@@ -8,8 +8,8 @@ import vk_api
 from bot.api_client import IntegrationClient, format_api_error
 from bot.flows.notifications import rental_decision_member_text, return_decision_member_text
 from bot.notify_registry import rental_applicant_peer, return_applicant_peer
+from bot.state import get_state
 from bot.vk_send import ack_message_event, send_peer, try_edit_remove_keyboard
-
 
 def _parse_payload(payload_raw: Any) -> dict[str, Any]:
     if payload_raw is None:
@@ -41,6 +41,76 @@ def handle_message_event(
     payload = _parse_payload(obj.get("payload"))
 
     kind = str(payload.get("t") or "")
+    if kind == "ig":
+        st = get_state(peer_id)
+        if st.flow != "issue" or st.step != "issue_add":
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Сценарий не активен.")
+            return
+        try:
+            gear_id = int(payload["g"])
+            delta = int(payload["d"])
+        except (KeyError, TypeError, ValueError):
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Некорректная кнопка.")
+            return
+        gear = next((x for x in st.issue_gear_results if int(x["id"]) == gear_id), None)
+        if gear is None:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Позиция не найдена.")
+            return
+        avail = int(gear.get("available_count") or 0)
+        cur = sum(q for gid, q in st.issue_cart if gid == gear_id)
+        new_qty = cur + delta
+        if new_qty < 0:
+            new_qty = 0
+        if new_qty > avail:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=f"Доступно только {avail}.")
+            return
+        st.issue_cart = [(gid, q) for gid, q in st.issue_cart if gid != gear_id]
+        if new_qty > 0:
+            st.issue_cart.append((gear_id, new_qty))
+        gear_name = str(gear.get("name") or f"id {gear_id}")
+        if delta > 0 and cur == 0 and new_qty > 0:
+            snack = f"Позиция «{gear_name}» добавлена в корзину."
+        elif delta > 0:
+            snack = f"Позиция «{gear_name}»: теперь {new_qty} шт. в корзине."
+        elif new_qty == 0:
+            snack = f"Позиция «{gear_name}» удалена из корзины."
+        else:
+            snack = f"Позиция «{gear_name}»: теперь {new_qty} шт. в корзине."
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=snack)
+        return
+    if kind == "rg":
+        st = get_state(peer_id)
+        if st.flow != "return" or st.step != "return_items":
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Сценарий не активен.")
+            return
+        try:
+            gear_id = int(payload["g"])
+            delta = int(payload["d"])
+        except (KeyError, TypeError, ValueError):
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Некорректная кнопка.")
+            return
+        line = next((x for x in st.return_lines if int(x["gear_id"]) == gear_id), None)
+        if line is None:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text="Позиция не найдена.")
+            return
+        limit = int(line.get("qty_outstanding") or 0)
+        cur = sum(q for gid, q in st.return_cart if gid == gear_id)
+        new_qty = max(0, cur + delta)
+        if new_qty > limit:
+            ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=f"Доступно только {limit}.")
+            return
+        st.return_cart = [(gid, q) for gid, q in st.return_cart if gid != gear_id]
+        if new_qty > 0:
+            st.return_cart.append((gear_id, new_qty))
+        name = str(line.get("gear_name") or f"id {gear_id}")
+        if delta > 0 and cur == 0:
+            snack = f"Позиция «{name}» добавлена."
+        elif new_qty == 0:
+            snack = f"Позиция «{name}» убрана."
+        else:
+            snack = f"Позиция «{name}»: {new_qty} шт."
+        ack_message_event(vk, event_id=event_id, user_id=manager_vk_user_id, peer_id=peer_id, text=snack)
+        return
     try:
         req_id = int(payload["i"])
     except (KeyError, TypeError, ValueError):

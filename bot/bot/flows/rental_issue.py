@@ -9,7 +9,13 @@ import vk_api
 from bot.api_client import IntegrationClient, format_api_error
 from bot.notify_registry import rental_applicant_peer
 from bot.state import DialogState, get_state
-from bot.vk_send import inline_keyboard_two_actions, send_peer
+from bot.vk_send import (
+    empty_keyboard,
+    inline_keyboard_issue_qty,
+    inline_keyboard_two_actions,
+    keyboard_issue_actions,
+    send_peer,
+)
 
 from .notifications import callback_payload_rental_decide, format_rental_notification
 
@@ -45,17 +51,8 @@ def _cart_summary(st: DialogState) -> str:
     return "\n".join(lines) if lines else "(пусто)"
 
 
-def _hint_issue_step2_more_items() -> str:
-    return "Введите номер и количество через пробел, либо название другого снаряжения, либо «готово», если всё выбрали."
-
-
-def _instructions_issue_step2_after_search() -> tuple[str, str]:
-    """Две строки под списком находок: как выбрать из списка; как искать дальше и закончить."""
-    return (
-        "Шаг 2. Чтобы взять позицию из списка выше, отправьте два числа через пробел: сначала номер строки, "
-        "потом сколько штук нужно. Например, 1 2 — первая строка, две штуки.",
-        "Нужна другая вещь — наберите новый поисковый запрос (не короче 3 символов). Когда всё выбрали — «готово».",
-    )
+def issue_gear_payload(*, gear_id: int, delta: int) -> dict[str, Any]:
+    return {"t": "ig", "g": int(gear_id), "d": int(delta)}
 
 
 def _issue_show_gear_results(
@@ -77,16 +74,26 @@ def _issue_show_gear_results(
     for it in items:
         gid = int(it["id"])
         st.issue_gear_labels[gid] = str(it.get("name") or f"id {gid}")
-    lines = [f'По запросу «{raw_query}»:']
+    lines = [f"Результаты по запросу «{raw_query}»."]
+    send_peer(vk, peer_id=peer_id, text="\n".join(lines), keyboard=keyboard_issue_actions())
+    st.issue_gear_message_ids.clear()
     for i, it in enumerate(items, start=1):
-        avail = it.get("available_count", "?")
-        lines.append(f"{i}. {it.get('name')} — свободно {avail} (id {it['id']})")
-    lines.append("")
-    pick, footer = _instructions_issue_step2_after_search()
-    lines.append(pick)
-    lines.append(footer)
+        gid = int(it["id"])
+        avail = int(it.get("available_count") or 0)
+        text = f"{i}. {it.get('name')} — свободно {avail}"
+        kb = inline_keyboard_issue_qty(
+            minus_payload=issue_gear_payload(gear_id=gid, delta=-1),
+            plus_payload=issue_gear_payload(gear_id=gid, delta=1),
+        )
+        cmid = send_peer(vk, peer_id=peer_id, text=text, keyboard=kb)
+        if cmid is not None:
+            st.issue_gear_message_ids[gid] = cmid
+
+    st.issue_cart_message_id = None
+    if st.issue_cart:
+        cart_text = "Текущая корзина:\n" + _cart_summary(st)
+        st.issue_cart_message_id = send_peer(vk, peer_id=peer_id, text=cart_text, keyboard=keyboard_issue_actions())
     st.step = ISSUE_ADD
-    send_peer(vk, peer_id=peer_id, text="\n".join(lines))
 
 
 def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: int, from_id: int) -> None:
@@ -146,6 +153,7 @@ def start_issue_flow(vk: vk_api.VkApiMethod, api: IntegrationClient, peer_id: in
             "Шаг 1: введите не менее 3 символов для поиска снаряжения на складе "
             "(название или часть описания)."
         ),
+        keyboard=empty_keyboard(),
     )
 
 
@@ -169,60 +177,30 @@ def handle_issue_text(
         return
 
     if st.step == ISSUE_ADD:
+        if low in {"посмотреть корзину", "корзина"}:
+            send_peer(vk, peer_id=peer_id, text="Текущая корзина:\n" + _cart_summary(st), keyboard=keyboard_issue_actions())
+            return
+        if low in {"новый поиск", "поиск"}:
+            st.step = ISSUE_SEARCH
+            send_peer(vk, peer_id=peer_id, text="Введите новый поисковый запрос (не короче 3 символов).", keyboard=keyboard_issue_actions())
+            return
         if low in _DONE:
             if not st.issue_cart:
-                send_peer(vk, peer_id=peer_id, text="Корзина пуста — сначала добавьте позиции номером и количеством.")
+                send_peer(vk, peer_id=peer_id, text="Корзина пуста — сначала добавьте позиции кнопками +.")
                 return
             st.step = ISSUE_EVENT
             send_peer(
                 vk,
                 peer_id=peer_id,
                 text=("Корзина:\n" + _cart_summary(st) + "\n\nШаг 3: укажите мероприятие одной строкой (до 100 символов)."),
+                keyboard=empty_keyboard(),
             )
             return
-        parts = raw.split()
-        idx: int | None = None
-        qty: int | None = None
-        if len(parts) == 2:
-            try:
-                idx = int(parts[0])
-                qty = int(parts[1])
-            except ValueError:
-                idx = qty = None
-        if idx is not None and qty is not None:
-            if idx < 1 or idx > len(st.issue_gear_results):
-                send_peer(vk, peer_id=peer_id, text="Номер позиции не из списка.")
-                return
-            if qty <= 0:
-                send_peer(vk, peer_id=peer_id, text="Количество должно быть больше нуля.")
-                return
-            gear = st.issue_gear_results[idx - 1]
-            gid = int(gear["id"])
-            avail = int(gear.get("available_count") or 0)
-            if qty > avail:
-                send_peer(vk, peer_id=peer_id, text=f"Доступно только {avail} шт. для «{gear.get('name')}».")
-                return
-            st.issue_cart.append((gid, qty))
-            send_peer(
-                vk,
-                peer_id=peer_id,
-                text=(
-                    "Добавлено.\nТекущая корзина:\n"
-                    + _cart_summary(st)
-                    + "\n\n"
-                    + _hint_issue_step2_more_items()
-                ),
-            )
-            return
-
         if len(raw) < 3:
             send_peer(
                 vk,
                 peer_id=peer_id,
-                text=(
-                    "Ожидаю «номер количество» из текущего списка (например: 1 2), "
-                    "или новый поиск не короче 3 символов, или «готово»."
-                ),
+                text="Используйте кнопки +/− у позиций, либо нажмите «Новый поиск», «Посмотреть корзину» или «Готово».",
             )
             return
         _issue_show_gear_results(vk, api, peer_id, st, raw)
