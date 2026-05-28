@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMe } from "@/auth/useMe";
+
+const MIN_PASSWORD_LEN = 8;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -27,6 +29,10 @@ export function LoginPage() {
       ? (location.state as { from: string }).from
       : "/me";
 
+  const emailNormalized = useMemo(() => email.trim().toLowerCase(), [email]);
+  const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LEN;
+  const isSubmitDisabled = busy || emailNormalized.length === 0 || password.length < MIN_PASSWORD_LEN;
+
   if (!isPending && me) {
     return (
       <div className="mx-auto max-w-md space-y-4 p-6">
@@ -40,16 +46,20 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (isSubmitDisabled) {
+      return;
+    }
+
     setError(null);
     setBusy(true);
     try {
-      await login(email, password);
+      await login(emailNormalized, password);
       const user = await fetchMe();
       qc.setQueryData(ME_QUERY_KEY, user);
       navigate(redirectTo, { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.status === 401 ? "Неверный email или пароль" : err.message);
       } else {
         setError("Не удалось выполнить вход");
       }
@@ -63,10 +73,10 @@ export function LoginPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">Вход</CardTitle>
-          <CardDescription>Электронная почта и пароль учётной записи клуба.</CardDescription>
+          <CardDescription>Введите email и пароль учетной записи клуба.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
+          <form onSubmit={(e) => void onSubmit(e)} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -75,6 +85,7 @@ export function LoginPage() {
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 required
               />
             </div>
@@ -86,21 +97,33 @@ export function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={MIN_PASSWORD_LEN}
                 required
               />
+              {passwordTooShort ? (
+                <p className="text-xs text-muted-foreground">Минимум {MIN_PASSWORD_LEN} символов.</p>
+              ) : null}
             </div>
             {error ? <p className="text-destructive text-sm">{error}</p> : null}
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {busy ? "Вход…" : "Войти"}
             </Button>
           </form>
         </CardContent>
       </Card>
-      <p className="text-center text-xs text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" to="/">
-          На главную
-        </Link>
-      </p>
+      <div className="space-y-2 text-center text-xs text-muted-foreground">
+        <p>
+          Нет аккаунта?{" "}
+          <Link className="underline-offset-4 hover:underline" to="/register">
+            Зарегистрироваться
+          </Link>
+        </p>
+        <p>
+          <Link className="underline-offset-4 hover:underline" to="/">
+            На главную
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
