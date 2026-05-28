@@ -16,7 +16,6 @@ export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [document, setDocument] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +44,7 @@ export function RegisterPage() {
         email: email.trim().toLowerCase(),
         full_name: fullName.trim(),
         phone: phone.trim(),
-        document: document.trim() || null,
+        document: null,
         password,
       });
       navigate("/login", { replace: true });
@@ -80,10 +79,6 @@ export function RegisterPage() {
             <div className="space-y-2">
               <Label htmlFor="reg-phone">Телефон</Label>
               <Input id="reg-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+79991234567" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reg-document">Документ (опционально)</Label>
-              <Input id="reg-document" value={document} onChange={(e) => setDocument(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="reg-password">Пароль</Label>
