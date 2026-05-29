@@ -22,3 +22,7 @@ def require_env(name: str) -> str:
 
 def vk_msg_max_len() -> int:
     return int(os.environ.get("VK_BOT_MESSAGE_MAX_LEN", "4000"))
+
+
+def vk_link_page_url() -> str:
+    return os.environ.get("VK_LINK_PAGE_URL", "").strip()

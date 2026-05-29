@@ -4,11 +4,28 @@ import vk_api
 
 from bot.api_client import IntegrationClient, format_api_error
 from bot.commands import ParsedSlash, parse_slash
+from bot.config import vk_link_page_url
 from bot.flows.common import LINK_STEP_AWAIT_CODE, help_text, profile_lines
 from bot.flows.rental_issue import handle_issue_text, start_issue_flow
 from bot.flows.rental_return import handle_return_text, start_return_flow
 from bot.state import get_state, reset_state
 from bot.vk_send import empty_keyboard, send_peer
+
+
+def vk_link_instruction_text() -> str:
+    page_url = vk_link_page_url()
+    if page_url:
+        return (
+            "Чтобы привязать VK к аккаунту сайта, откройте страницу получения кода:\n"
+            f"{page_url}\n\n"
+            "Нажмите «Получить код», при необходимости войдите или зарегистрируйтесь, "
+            "а затем пришлите полученный код сюда одним сообщением."
+        )
+    return (
+        "Чтобы привязать VK к аккаунту сайта, откройте страницу получения кода на сайте. "
+        "Нажмите «Получить код», при необходимости войдите или зарегистрируйтесь, "
+        "а затем пришлите полученный код сюда одним сообщением."
+    )
 
 
 def _complete_vk_link(
@@ -72,7 +89,7 @@ def handle_slash(
         send_peer(
             vk,
             peer_id=peer_id,
-            text="Пришлите следующим сообщением код привязки с сайта (одной строкой).",
+            text=vk_link_instruction_text(),
             keyboard=empty_keyboard(),
         )
         return
@@ -85,7 +102,7 @@ def handle_slash(
             send_peer(
                 vk,
                 peer_id=peer_id,
-                text="Аккаунт VK ещё не привязан. Используйте /link и код с сайта.",
+                text=f"Аккаунт VK ещё не привязан. Используйте /link.\n\n{vk_link_instruction_text()}",
                 keyboard=empty_keyboard(),
             )
         else:

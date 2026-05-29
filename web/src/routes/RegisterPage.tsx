@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError } from "@/api/http";
 import { register, requestRegistrationCode, verifyRegistrationCode, type RegisterPayload } from "@/api/auth";
@@ -15,6 +15,13 @@ type RegistrationStep = "details" | "code";
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const redirectTo =
+    (location.state as { from?: string } | undefined)?.from && (location.state as { from?: string }).from !== "/register"
+      ? (location.state as { from: string }).from
+      : undefined;
+  const loginState = redirectTo ? { from: redirectTo } : undefined;
 
   const [step, setStep] = useState<RegistrationStep>("details");
   const [pendingPayload, setPendingPayload] = useState<RegisterPayload | null>(null);
@@ -86,7 +93,7 @@ export function RegisterPage() {
     try {
       await verifyRegistrationCode(pendingPayload.email, normalizedCode);
       await register(pendingPayload);
-      navigate("/login", { replace: true });
+      navigate("/login", { replace: true, state: loginState });
     } catch (err) {
       setError(apiErrorMessage(err, "Не удалось завершить регистрацию"));
     } finally {
@@ -184,7 +191,7 @@ export function RegisterPage() {
       </Card>
       <p className="text-center text-xs text-muted-foreground">
         Уже есть аккаунт?{" "}
-        <Link className="underline-offset-4 hover:underline" to="/login">
+        <Link className="underline-offset-4 hover:underline" to="/login" state={loginState}>
           Войти
         </Link>
       </p>

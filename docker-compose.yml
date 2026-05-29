@@ -63,6 +63,7 @@ services:
       VK_GROUP_TOKEN: ${VK_GROUP_TOKEN:-}
       VK_GROUP_ID: ${VK_GROUP_ID:-}
       VK_BOT_SECRET: ${VK_BOT_SECRET:-}
+      VK_LINK_PAGE_URL: ${VK_LINK_PAGE_URL:-}
     volumes:
       - ./bot/bot:/app/bot
     restart: unless-stopped

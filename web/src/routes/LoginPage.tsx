@@ -28,6 +28,7 @@ export function LoginPage() {
     (location.state as { from?: string } | undefined)?.from && (location.state as { from?: string }).from !== "/login"
       ? (location.state as { from: string }).from
       : "/me";
+  const registerState = redirectTo !== "/me" ? { from: redirectTo } : undefined;
 
   const emailNormalized = useMemo(() => email.trim().toLowerCase(), [email]);
   const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LEN;
@@ -38,7 +39,7 @@ export function LoginPage() {
       <div className="mx-auto max-w-md space-y-4 p-6">
         <p className="text-sm text-muted-foreground">Вы уже вошли.</p>
         <Button asChild>
-          <Link to="/me">Перейти в «Мой склад»</Link>
+          <Link to={redirectTo}>Продолжить</Link>
         </Button>
       </div>
     );
@@ -114,7 +115,7 @@ export function LoginPage() {
       <div className="space-y-2 text-center text-xs text-muted-foreground">
         <p>
           Нет аккаунта?{" "}
-          <Link className="underline-offset-4 hover:underline" to="/register">
+          <Link className="underline-offset-4 hover:underline" to="/register" state={registerState}>
             Зарегистрироваться
           </Link>
         </p>

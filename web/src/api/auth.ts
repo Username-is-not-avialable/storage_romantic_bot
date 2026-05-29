@@ -55,3 +55,12 @@ export async function verifyRegistrationCode(email: string, code: string): Promi
     body: JSON.stringify({ email, purpose: "email_verify", code }),
   });
 }
+
+export interface VkLinkCodeResponse {
+  code: string;
+  expires_at: string;
+}
+
+export async function requestVkLinkCode(): Promise<VkLinkCodeResponse> {
+  return apiJson<VkLinkCodeResponse>("/api/auth/vk-link/request_code", { method: "POST" });
+}
