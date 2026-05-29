@@ -41,3 +41,26 @@ export async function register(payload: RegisterPayload): Promise<void> {
     body: JSON.stringify(payload),
   });
 }
+
+export async function requestRegistrationCode(email: string): Promise<void> {
+  await apiJson<{ message: string }>("/api/auth/request-code", {
+    method: "POST",
+    body: JSON.stringify({ email, purpose: "email_verify" }),
+  });
+}
+
+export async function verifyRegistrationCode(email: string, code: string): Promise<void> {
+  await apiJson<{ message: string }>("/api/auth/verify-code", {
+    method: "POST",
+    body: JSON.stringify({ email, purpose: "email_verify", code }),
+  });
+}
+
+export interface VkLinkCodeResponse {
+  code: string;
+  expires_at: string;
+}
+
+export async function requestVkLinkCode(): Promise<VkLinkCodeResponse> {
+  return apiJson<VkLinkCodeResponse>("/api/auth/vk-link/request_code", { method: "POST" });
+}

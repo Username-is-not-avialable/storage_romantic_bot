@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { HomePage } from "@/routes/HomePage";
 import { LoginPage } from "@/routes/LoginPage";
 import { RegisterPage } from "@/routes/RegisterPage";
+import { VkLinkPage } from "@/routes/VkLinkPage";
 import { CatalogPage } from "@/routes/CatalogPage";
 import { DashboardPage } from "@/routes/DashboardPage";
 import { NewRentalRequestPage } from "@/routes/NewRentalRequestPage";
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: "catalog", element: <CatalogPage /> },
       { path: "me", element: <DashboardPage /> },
+      { path: "vk-link", element: <VkLinkPage /> },
       { path: "requests/new", element: <NewRentalRequestPage /> },
       { path: "me/return-requests/new", element: <NewReturnRequestPage /> },
       { path: "manager/requests", element: <ManagerRentalRequestsPage /> },
