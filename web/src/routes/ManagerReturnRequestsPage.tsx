@@ -130,7 +130,7 @@ function ReturnDecisionCard({
             {error ? <p className="text-destructive text-sm">{error}</p> : null}
             <div className="flex flex-wrap gap-2">
               <Button type="button" disabled={busy} onClick={() => void decide("approve")}>
-                Принять и принять физически
+                Принять
               </Button>
               <Button type="button" variant="destructive" disabled={busy} onClick={() => void decide("reject")}>
                 Отклонить

@@ -223,7 +223,7 @@ function NewRentalRequestInner() {
                   <Label className="text-xs">Добавить</Label>
                   <select
                     className={cn(
-                      "flex h-9 min-w-[200px] rounded-md border border-input bg-transparent px-2 text-sm shadow-sm",
+                      "flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-sm",
                     )}
                     value={addGearId}
                     onChange={(e) => setAddGearId(e.target.value)}
