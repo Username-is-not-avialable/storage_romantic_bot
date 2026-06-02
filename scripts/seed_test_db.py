@@ -33,24 +33,31 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.services.rental_return_requests import create_rental_return_request
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from api.database import (  # noqa: E402
+from api.database import (
     AsyncSessionLocal,
     Gear,
     Rental,
+    RentalEvent,
+    RentalEventItem,
+    RentalItem,
     RentalRequest,
     RentalRequestItem,
+    RentalReturnRequest,
+    RentalReturnRequestItem,
     User,
 )
-from api.services.auth import hash_password  # noqa: E402
-from api.services.rental_requests import create_rental_request  # noqa: E402
-from api.services.rentals import issue_rental, return_rental  # noqa: E402
+from api.services.auth import hash_password
+from api.services.rental_requests import create_rental_request
+from api.services.rentals import issue_rental, return_rental
 
 SEED_EMAIL_SUFFIX = "@seed.local"
 SEED_GEAR_PREFIX = "[seed] "
@@ -71,35 +78,14 @@ async def _seed_user_ids(session: AsyncSession) -> list[int]:
 
 
 async def clear_seed_data(session: AsyncSession) -> None:
-    """Удаляет только данные с меткой seed (email / префикс снаряжения)."""
-    uids = await _seed_user_ids(session)
-    if not uids:
-        return
-
-    await session.execute(
-        delete(RentalRequestItem).where(
-            RentalRequestItem.rental_request_id.in_(
-                select(RentalRequest.id).where(
-                    (RentalRequest.user_id.in_(uids))
-                    | (RentalRequest.decision_manager_id.in_(uids))
-                )
-            )
-        )
-    )
-    await session.execute(
-        delete(RentalRequest).where(
-            (RentalRequest.user_id.in_(uids)) | (RentalRequest.decision_manager_id.in_(uids))
-        )
-    )
-    await session.execute(
-        delete(Rental).where(
-            (Rental.user_id.in_(uids)) | (Rental.issue_manager_id.in_(uids))
-        )
-    )
-    await session.execute(delete(User).where(User.id.in_(uids)))
-
-    await session.execute(delete(Gear).where(Gear.name.startswith(SEED_GEAR_PREFIX)))
-    await session.flush()
+    """Удаляет все данные через TRUNCATE (только для тестов!)."""
+    await session.execute(text("TRUNCATE TABLE rental_event_items," \
+                                             " rental_events, rental_items," \
+                                             " rentals, rental_return_request_items," \
+                                             " rental_return_requests, rental_request_items," \
+                                             " rental_requests, auth_email_codes, auth_sessions," \
+                                             " vk_link_requests, user_messenger_links, users, gear CASCADE;"))
+    await session.commit()
 
 
 async def seed_if_needed(*, force: bool) -> None:
@@ -112,9 +98,10 @@ async def seed_if_needed(*, force: bool) -> None:
 
         existing = await session.execute(select(User.id).where(User.email == member_email))
         if existing.scalar_one_or_none() is not None:
-            print("Тестовые данные уже есть (member@seed.local). Используйте --force для пересоздания.")
+            print("Тестовые данные уже есть. Используйте --force для пересоздания.")
             return
 
+        # Создаём пользователей
         member = User(
             email=member_email,
             password_hash=hash_password("memberpass"),
@@ -148,10 +135,112 @@ async def seed_if_needed(*, force: bool) -> None:
         session.add_all([member, manager, admin])
         await session.flush()
 
-        gear_specs: list[tuple[str, int, int, str]] = [
-            (f"{SEED_GEAR_PREFIX}Ледоруб", 8, 6, "Классический ледоруб"),
-            (f"{SEED_GEAR_PREFIX}Кошки альпийские", 12, 10, "Размер универсальный"),
-            (f"{SEED_GEAR_PREFIX}Палатка 3-местная", 5, 4, "Трёхсезонная"),
+        # Список снаряжения (107 позиций)
+        gear_specs = [
+            ("Палатка Quechua arpenaz 2+", 1, 2, ""),
+            ("Палатка Alaska wind 3", 1, 2, "плохие молнии, 3 места, 6 колышков"),
+            ("Палатка Temi Angara", 1, 1, "нет тамбурной дуги, не хватает колышков"),
+            ("Палатка Quechua arpenaz 3 xl", 1, 1, ""),
+            ("Палатка RockLand Mountain 3", 1, 1, ""),
+            ("Палатка \"пещерная\"", 1, 1, "старая, не хватает колышков"),
+            ("Палатка Alaska Dome", 1, 1, ""),
+            ("Палатка Red Fox Comfort", 1, 1, ""),
+            ("Палатка Red Fox Chellenger", 1, 1, ""),
+            ("Палатка Rockland pamir v2 alu", 1, 1, ""),
+            ("Палатка red fox cave 6 с дугами (полубочка)", 1, 1, ""),
+            ("Шатер Манарага Зима", 6, 6, ""),
+            ("Тент для шатра Зима", 3, 3, ""),
+            ("Шатер ВЕК тикси 12, двухслойный", 1, 1, ""),
+            ("Тент для шатра ВЕК Тикси 12", 2, 2, ""),
+            ("Полубочка ВЕК Байкал лайт 8, трехслойная", 1, 1, ""),
+            ("Полубочка ВЕК Байкал 12", 1, 1, ""),
+            ("Тент 3*3", 2, 2, ""),
+            ("Тент 4.6 * 2.7", 1, 1, ""),
+            ("Тент 9*6", 1, 1, ""),
+            ("Тент 1.8 * 2.95", 1, 1, ""),
+            ("Тент 2.2 * 2.2", 1, 1, ""),
+            ("Тент 2.2 * 2.8 тканевый тускло синий", 1, 1, ""),
+            ("Тент 14.15 * 4.9 ярко салатовый", 1, 1, ""),
+            ("Тент 3.85 * 3 снаружи болотный, изнутри серый", 1, 1, ""),
+            ("Тент зеленый 4*6", 1, 1, ""),
+            ("Рюкзак Free Knight Trekking 60", 1, 1, ""),
+            ("Рюкзак Манарага синий ~70", 2, 2, ""),
+            ("Рюкзак ВЕК Лось 90", 6, 6, ""),
+            ("Рюкзак Манарага ~80", 3, 3, ""),
+            ("Рюкзак Манарага Конжак 100", 1, 1, ""),
+            ("Рюкзак Век черно-синий ~80", 1, 1, ""),
+            ("Рюкзак Nova Tour Taimyr 110", 1, 1, ""),
+            ("Рюкзак Манарага Конжак 80", 1, 1, ""),
+            ("Рюкзак Синий без клапана ~60", 1, 1, ""),
+            ("Рюкзак Nordway Greek 65", 1, 1, ""),
+            ("Рюкзак Sturm 80 Камуфляжный", 1, 1, ""),
+            ("Рюкзак Silver Top ~60", 1, 1, ""),
+            ("Рюкзак Inversion 28", 1, 1, ""),
+            ("Рюкзак Манарага 30", 2, 2, ""),
+            ("Рюкзак Dynastar Heli 26", 1, 1, ""),
+            ("Рюкзак Splav 45", 1, 1, ""),
+            ("Рюкзак Алтай 120 АлпИндустрия discovery", 1, 1, ""),
+            ("Рюкзак RedFox ligt 60", 1, 1, ""),
+            ("Рюкзак ВЕК 30", 1, 1, ""),
+            ("Рюкзак Синий 60", 1, 1, ""),
+            ("Рюкзак Вело красный", 1, 1, ""),
+            ("Рюкзак Astra 75", 1, 1, ""),
+            ("Печка Век стандарт лайт", 2, 2, ""),
+            ("Печка снигеревская", 1, 1, ""),
+            ("ЗИП печка: 3 поддона, 2 насадки, 1 удлинняющая, 5 ножек, 2 экономайзера, штука с дыркой", 1, 1, ""),
+            ("Котел 10л", 2, 2, ""),
+            ("Котел 12л", 4, 4, ""),
+            ("Котел 2л", 3, 3, ""),
+            ("Котел 4л", 2, 2, ""),
+            ("Котел 5л", 2, 2, ""),
+            ("Котел 6л", 4, 4, ""),
+            ("Котел 7л", 4, 4, ""),
+            ("Котел прямоугольный", 3, 3, ""),
+            ("Тросик костровой", 15, 15, ""),
+            ("Поварешка", 2, 2, ""),
+            ("Термос 2л", 24, 24, ""),
+            ("Пенка 8мм", 1, 1, ""),
+            ("Поппер", 1, 1, ""),
+            ("Спальник", 1, 1, ""),
+            ("2 камеры от спортивного катамарана №1", 1, 1, ""),
+            ("2 камеры от туристического катамарата №2", 1, 1, ""),
+            ("2 камеры от туристического катамарата №3", 1, 1, ""),
+            ("2 шкуры от спортивного катамарана №1", 1, 1, ""),
+            ("2 шкуры от туристического катамарана №2", 2, 2, ""),
+            ("2 шкуры от туристического катамарана №3", 1, 1, ""),
+            ("Кат Вольный ветер 4 + рама", 10, 10, ""),
+            ("Кат в синем бауле 4 + рама", 1, 1, ""),
+            ("красный мешок с болтами, 4 подушки для спортивного катамарана №1", 1, 1, ""),
+            ("Весло", 15, 15, ""),
+            ("Старая рама для ката", 2, 2, ""),
+            ("Герма 70л", 5, 5, ""),
+            ("Спасжилет", 1, 1, ""),
+            ("Насос для катамарана", 1, 1, ""),
+            ("Ледоруб ВЦСПС", 1, 1, ""),
+            ("Ледоруб вертикаль 70", 1, 1, ""),
+            ("Ледоруб 65", 1, 1, ""),
+            ("Ледоруб 50", 1, 1, ""),
+            ("Айсбаль", 1, 1, ""),
+            ("Айсбаль гнутый", 1, 1, ""),
+            ("Лопата rockland", 3, 3, ""),
+            ("Лопата ortovox", 1, 1, ""),
+            ("Кошки Salewa", 3, 3, ""),
+            ("Кошки Lucky (немножко чиненные)", 1, 1, ""),
+            ("Кошки Муравьева под жесткие ботинки", 2, 2, ""),
+            ("Кошки Вертикаль антиподлип и оранжевая стропа", 2, 2, ""),
+            ("Кошки 12 зубьев, сталь", 4, 4, ""),
+            ("Кошки Венто", 1, 1, ""),
+            ("Кошки 10 зубьев (1983г) дюраль, без стропы", 6, 6, ""),
+            ("Кошки Noname", 1, 1, ""),
+            ("Беседка Вертикаль Комфорт", 1, 1, ""),
+            ("Беседка Vento стандарт vnt. 004", 1, 1, ""),
+            ("Грудная обвязка Вертикаль Бабочка регулируемая", 1, 1, ""),
+            ("Грудная обвязка Vento Бабочка регулируемая", 1, 1, ""),
+            ("Система альпиниская совмещенная", 3, 3, ""),
+            ("Усы самостроховки 3,5 м статика", 1, 1, ""),
+            ("Усы самостраховки жёлтые", 1, 1, ""),
+            ("Усы сине-зеленые", 1, 1, ""),
+            ("Усы самостраховки динамические зелено-красные, с репиками черными", 1, 1, ""),
         ]
         gears: list[Gear] = []
         for name, total, avail, desc in gear_specs:
@@ -160,7 +249,8 @@ async def seed_if_needed(*, force: bool) -> None:
             gears.append(g)
         await session.flush()
 
-        g0, g1, g2 = gears
+        # Дополнительные тестовые аренды и заявка (опционально)
+        g0, g1, g2 = gears[0], gears[1], gears[2]
         today = date.today()
         due = today + timedelta(days=14)
 
@@ -202,15 +292,36 @@ async def seed_if_needed(*, force: bool) -> None:
             session=session,
             user_id=member.id,
             due_date=due + timedelta(days=7),
-            event="Ледолазание (заявка)",
-            comment="Тестовая заявка из seed",
-            deposit_document="scan_zalog.pdf",
+            event="Ледолазание",
+            comment="В августе, в Архызе",
+            deposit_document="СНИЛС",
             target_manager_id=manager.id,
             items=[
                 {"gear_id": g0.id, "qty_requested": 1},
                 {"gear_id": g2.id, "qty_requested": 1},
             ],
         )
+
+        # Создаём активную аренду для участника, чтобы потом оформить заявку на возврат (частичный)
+        rental = await issue_rental(
+            session=session,
+            user_id=member.id,
+            issue_manager_id=manager.id,
+            due_date=date.today() + timedelta(days=30),
+            event="Поход в Крым",
+            comment="Выдано снаряжение",
+            lines=[(gears[80].id, 1), (gears[81].id, 1)],  # ледорубы
+            fee_status_snapshot="active",
+        )
+
+        # Заявка на возврат (частичный)
+        await create_rental_return_request(
+            session=session,
+            user_id=member.id,
+            rental_id=rental.id,
+            items=[{"gear_id": gears[80].id, "qty_return": 1}],
+            target_manager_id=manager.id,
+        )        
 
         await session.commit()
 

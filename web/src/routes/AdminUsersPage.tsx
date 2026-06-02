@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listAdminUsers } from "@/api/admin";
 import { RequireAuth, RequireRole } from "@/components/auth/Guards";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -31,18 +31,11 @@ function AdminUsersInner() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Пользователи</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Список из API. Назначение ролей через PATCH пока только из админских эндпоинтов вне этого экрана.
-        </p>
       </div>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Поиск</CardTitle>
-          <CardDescription>Фильтр по ФИО (ilike на сервере).</CardDescription>
-        </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
-            <Label htmlFor="an">Имя</Label>
+            <Label htmlFor="an">Поиск</Label>
             <Input id="an" value={name} onChange={(e) => setName(e.target.value)} placeholder="Фрагмент ФИО" />
           </div>
           <Button type="button" onClick={() => setApplied(name.trim() || undefined)}>

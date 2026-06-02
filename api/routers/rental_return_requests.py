@@ -5,7 +5,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import RentalReturnRequest, User, get_db
-from api.dependencies import require_manager_or_admin, require_rental_request_submitter
+from api.dependencies import require_manager_or_admin, require_member_or_manager_or_admin
 from api.schemas.rental_return_request import (
     RentalReturnRequestCreate,
     RentalReturnRequestDecision,
@@ -31,7 +31,7 @@ manager_router = APIRouter(
 @router.get("/", response_model=RentalReturnRequestsList)
 async def list_my_rental_return_requests_endpoint(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_rental_request_submitter()),
+    current_user: User = Depends(require_member_or_manager_or_admin()),
     status: Literal["pending", "approved", "rejected"] | None = None,
 ):
     """Список заявок на возврат текущего пользователя."""
@@ -73,7 +73,7 @@ async def list_manager_rental_return_requests_endpoint(
 async def create_rental_return_request_endpoint(
     body: RentalReturnRequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_rental_request_submitter()),
+    current_user: User = Depends(require_member_or_manager_or_admin()),
 ):
     """Создаёт заявку на возврат (статус `pending`)."""
 

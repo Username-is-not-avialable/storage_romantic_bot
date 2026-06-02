@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from api.dependencies import get_current_user, require_rental_request_submitter
+from api.dependencies import get_current_user, require_member_or_manager_or_admin
 from api.schemas.user import (
     ManagerList,
     UserCreate,
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/users", tags=["Users"])
 @router.get("/managers", response_model=ManagerList)
 async def list_managers_for_web(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: User = Depends(require_rental_request_submitter()),
+    _: User = Depends(require_member_or_manager_or_admin()),
 ):
     """Список активных завснаров (`manager` и `admin`) для веб-форм и выбора адресата заявки."""
 
