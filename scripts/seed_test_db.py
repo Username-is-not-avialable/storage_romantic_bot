@@ -36,6 +36,8 @@ from pathlib import Path
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.services.rental_return_requests import create_rental_return_request
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -290,15 +292,36 @@ async def seed_if_needed(*, force: bool) -> None:
             session=session,
             user_id=member.id,
             due_date=due + timedelta(days=7),
-            event="Ледолазание (заявка)",
-            comment="Тестовая заявка из seed",
-            deposit_document="scan_zalog.pdf",
+            event="Ледолазание",
+            comment="В августе, в Архызе",
+            deposit_document="СНИЛС",
             target_manager_id=manager.id,
             items=[
                 {"gear_id": g0.id, "qty_requested": 1},
                 {"gear_id": g2.id, "qty_requested": 1},
             ],
         )
+
+        # Создаём активную аренду для участника, чтобы потом оформить заявку на возврат (частичный)
+        rental = await issue_rental(
+            session=session,
+            user_id=member.id,
+            issue_manager_id=manager.id,
+            due_date=date.today() + timedelta(days=30),
+            event="Поход в Крым",
+            comment="Выдано снаряжение",
+            lines=[(gears[80].id, 1), (gears[81].id, 1)],  # ледорубы
+            fee_status_snapshot="active",
+        )
+
+        # Заявка на возврат (частичный)
+        await create_rental_return_request(
+            session=session,
+            user_id=member.id,
+            rental_id=rental.id,
+            items=[{"gear_id": gears[80].id, "qty_return": 1}],
+            target_manager_id=manager.id,
+        )        
 
         await session.commit()
 
