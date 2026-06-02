@@ -91,7 +91,7 @@ def require_manager_or_admin() -> Callable[[User], User]:
     return require_roles("manager", "admin")
 
 
-def require_rental_request_submitter() -> Callable[[User], User]:
+def require_member_or_manager_or_admin() -> Callable[[User], User]:
     """Оформление заявок на выдачу/возврат (веб): те же роли, что у участника-клиента."""
     return require_roles("member", "manager", "admin")
 
