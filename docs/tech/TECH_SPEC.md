@@ -38,6 +38,7 @@
 - `Domain Services`: бизнес-логика заявок, аренд, доступности.
 - `Persistence`: PostgreSQL, SQLAlchemy ORM.
 - Веб-интерфейс (React SPA + shadcn/ui): сборка и публикация через Nginx совместно с API — см. [WEB_FRONTEND.md](WEB_FRONTEND.md).
+- Логирование и observability (JSON-логи, request_id, Loki/Promtail/Grafana): см. [LOGGING.md](LOGGING.md).
 - `Integrations`:
 - Архитектура диалогов бота: [BOT_DIALOG.md](BOT_DIALOG.md)
   - VK bot adapter

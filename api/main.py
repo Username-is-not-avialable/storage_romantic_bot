@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from api.config import get_settings
+from api.logging_config import RequestIdMiddleware, setup_logging
 from api.routers import (
     admin,
     auth,
@@ -11,9 +12,12 @@ from api.routers import (
     vk_integration,
 )
 
+setup_logging()  # JSON-логи, request_id, маскирование PII (после uvicorn Config, см. модуль)
+
 get_settings()  # validate required env at startup/import time
 
 app = FastAPI(title="storage Romantic API")
+app.add_middleware(RequestIdMiddleware)
 
 # Подключение роутеров
 app.include_router(users.router)

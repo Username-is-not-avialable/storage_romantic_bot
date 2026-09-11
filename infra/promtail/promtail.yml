@@ -1,0 +1,41 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /positions/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Автообнаружение контейнеров compose: promtail читает их json-file логи
+  # через docker.sock (docker logs продолжает работать параллельно).
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # service: из метки compose-сервиса (api/web/bot/db/loki/promtail/grafana)
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      # container: имя контейнера (storage_api, ...)
+      - source_labels: [__meta_docker_container_name]
+        regex: /(.*)
+        target_label: container
+      # stream: stdout/stderr
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+    pipeline_stages:
+      # Наши JSON-логи (api/bot): поднимаем поля в Loki для фильтрации.
+      - json:
+          expressions:
+            level: level
+            request_id: request_id
+            method: method
+            path: path
+            status: status
+      # Только level — лоукардинальная метка; request_id/status остаются в
+      # содержимом строки и фильтруются LogQL (json | request_id="...").
+      - labels:
+          level:

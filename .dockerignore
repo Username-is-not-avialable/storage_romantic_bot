@@ -25,3 +25,6 @@ credentials.json
 
 # Logs / transient
 *.log
+
+# Log-stack configs (not needed inside app images)
+infra/

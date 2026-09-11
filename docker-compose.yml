@@ -2,6 +2,11 @@ services:
   db:
     image: postgres:15-alpine
     container_name: storage_db
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_USER: ${DB_USER:-app_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
@@ -21,6 +26,11 @@ services:
       context: .
       dockerfile: api/dockerfile
     container_name: storage_api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +55,11 @@ services:
       context: ./web
       dockerfile: Dockerfile
     container_name: storage_web
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - api
     ports:
@@ -54,6 +69,11 @@ services:
   bot:
     build: ./bot
     container_name: storage_bot
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - api
     env_file:
@@ -68,5 +88,53 @@ services:
       - ./bot/bot:/app/bot
     restart: unless-stopped
 
+  # === Логи: сбор (promtail) + хранение (loki) + веб-интерфейс (grafana) ===
+
+  loki:
+    image: grafana/loki:3.6.11
+    container_name: storage_loki
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      # API Loki (для LogQL-запросов извне при необходимости)
+      - "${LOKI_PUBLISH_PORT:-3100}:3100"
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.6.11
+    container_name: storage_promtail
+    command: -config.file=/etc/promtail/promtail.yml
+    # Только чтение docker.sock: promtail следит за логами контейнеров.
+    user: root
+    volumes:
+      - ./infra/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/positions
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.3
+    container_name: storage_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Просмотр логов без логина (вкладка Explore); настройка — под админом.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PUBLISH_PORT:-3000}:3000"
+    depends_on:
+      - loki
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  loki_data:
+  promtail_positions:
+  grafana_data:
