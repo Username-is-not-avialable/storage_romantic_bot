@@ -1,0 +1,27 @@
+# Keep the repo-root build context (used by the `api` image) small.
+.git
+**/__pycache__
+**/*.py[codz]
+*.pyc
+
+# Virtual environments / caches
+api/.venv
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Node
+web/node_modules
+web/dist
+
+# Secrets / local env (never ship into an image)
+.env
+.env.*
+api/token.json
+api/credentials.json
+token.json
+credentials.json
+
+# Logs / transient
+*.log

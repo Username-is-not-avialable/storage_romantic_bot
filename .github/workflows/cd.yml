@@ -1,0 +1,56 @@
+name: CD — Publish images to GHCR
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & push ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api
+            context: .
+            dockerfile: api/dockerfile
+          - service: web
+            context: ./web
+            dockerfile: web/Dockerfile
+          - service: bot
+            context: ./bot
+            dockerfile: bot/Dockerfile
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute image name
+        id: meta
+        run: |
+          # GHCR image names must be lowercase and include the registry host,
+          # otherwise the push goes to Docker Hub by default.
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels)
+        id: docker-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.meta.outputs.image }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.docker-meta.outputs.tags }}
+          labels: ${{ steps.docker-meta.outputs.labels }}
