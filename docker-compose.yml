@@ -62,8 +62,8 @@ services:
         max-file: "3"
     depends_on:
       - api
-    ports:
-      - "${WEB_PUBLISH_PORT:-8080}:80"
+    expose:
+      - "80"
     restart: unless-stopped
 
   bot:
@@ -86,6 +86,27 @@ services:
       VK_LINK_PAGE_URL: ${VK_LINK_PAGE_URL:-}
     volumes:
       - ./bot/bot:/app/bot
+    restart: unless-stopped
+
+  # === HTTPS: внешний reverse-proxy с автоматическими сертификатами Let's Encrypt ===
+  caddy:
+    image: caddy:2-alpine
+    container_name: storage_caddy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
     restart: unless-stopped
 
   # === Логи: сбор (promtail) + хранение (loki) + веб-интерфейс (grafana) ===
@@ -138,3 +159,5 @@ volumes:
   loki_data:
   promtail_positions:
   grafana_data:
+  caddy_data:
+  caddy_config:

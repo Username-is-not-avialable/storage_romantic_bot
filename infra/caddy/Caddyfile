@@ -1,0 +1,7 @@
+{
+    email antonbakir280@mail.ru
+}
+
+romantic-storage.ru {
+    reverse_proxy web:80
+}
